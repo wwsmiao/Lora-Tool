@@ -14,22 +14,28 @@ IMAGE_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.bmp', '.gif', '.tiff', '.tif', '.
 TEXT_EXTENSIONS = {'.txt', '.text', '.caption'}
 
 # ── Baidu Translate API Config ──────────────────────────
-# 优先级：环境变量 > baidu_translate_config.json > 硬编码旧值
-# 建议将 appid/appkey 写入 baidu_translate_config.json，避免明文硬编码
-def _load_baidu_config():
-    """从 baidu_translate_config.json 加载翻译 API 配置，失败返回空字典。"""
-    cfg_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'baidu_translate_config.json')
+# 从环境变量或 .env 文件读取（优先级：环境变量 > .env 文件）
+# 请勿在此硬编码密钥
+
+def _load_env_file():
+    """加载项目根目录的 .env 文件（若存在）。"""
+    env_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '.env')
     try:
-        import json as _json
-        with open(cfg_path, 'r', encoding='utf-8') as f:
-            return _json.load(f)
-    except Exception:
-        return {}
+        with open(env_path, 'r', encoding='utf-8') as f:
+            for line in f:
+                line = line.strip()
+                if line and not line.startswith('#') and '=' in line:
+                    key, _, val = line.partition('=')
+                    key, val = key.strip(), val.strip().strip('"').strip("'")
+                    if key and key not in os.environ:
+                        os.environ[key] = val
+    except FileNotFoundError:
+        pass
 
-_baidu_cfg = _load_baidu_config()
+_load_env_file()
 
-BAIDU_APPID = os.environ.get('BAIDU_APPID') or _baidu_cfg.get('appid', '')
-BAIDU_APPKEY = os.environ.get('BAIDU_APPKEY') or _baidu_cfg.get('appkey', '')
+BAIDU_APPID = os.environ.get('BAIDU_APPID', '')
+BAIDU_APPKEY = os.environ.get('BAIDU_APPKEY', '')
 
 # ── About Page ──────────────────────────────────────────────
 SOFTWARE_VERSION = 'v1.0.0'
