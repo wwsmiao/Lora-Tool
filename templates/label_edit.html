@@ -143,8 +143,8 @@ function renderPagination(page, total, totalItems) {
 }
 
 function saveLabel(el) {
-    var filename = el.dataset.filename, content = el.value;
-    fetch('/label_edit/save', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({image_path:currentPath, filename:filename, content:content}) })
+    var txt_name = el.dataset.filename, content = el.value;
+    fetch('/label_edit/save', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({image_path:currentPath, txt_name:txt_name, content:content}) })
         .then(r=>r.json()).then(d=>{ if(!d.success) showToast(d.message,'error'); });
 }
 
@@ -154,7 +154,7 @@ function replaceAll() {
     var s = $('searchStr').value, r = $('replaceStr').value;
     if (!s) { showToast('请输入查找字符串','warning'); return; }
     if (!confirm('确定将 "'+s+'" 替换为 "'+(r||'(删除)')+'"？')) return;
-    fetch('/label_edit/replace_all', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({image_path:currentPath, search:s, replace:r}) })
+    fetch('/label_edit/replace_all', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({image_path:currentPath, search_str:s, replace_str:r}) })
         .then(r=>r.json()).then(d=>{ if(d.success){ showToast('已替换 '+d.count+' 处', 'success'); _loadPage(); } else showToast(d.message,'error'); });
 }
 
@@ -165,9 +165,11 @@ function translateAll(direction) {
 }
 
 function translateOne(el) {
-    var fn = el.dataset.filename;
-    fetch('/label_edit/translate_one', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({image_path:currentPath, filename:fn}) })
-        .then(r=>r.json()).then(d=>{ if(d.success){ var ta = el.closest('.card-body').querySelector('textarea'); ta.value = d.content; saveLabel(ta); showToast('翻译完成','success'); } else showToast(d.message,'error'); });
+    var ta = el.closest('.card-body').querySelector('textarea');
+    var text = ta.value.trim();
+    if (!text) { showToast('文本为空','warning'); return; }
+    fetch('/label_edit/translate', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({text:text, direction:'zh2en'}) })
+        .then(r=>r.json()).then(d=>{ if(d.success){ ta.value = d.translated || d.result || ''; ta.dispatchEvent(new Event('blur')); showToast('翻译完成','success'); } else showToast(d.message,'error'); });
 }
 
 function escHtml(s) { var d = document.createElement('div'); d.textContent = s||''; return d.innerHTML; }
