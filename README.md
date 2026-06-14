@@ -80,7 +80,7 @@ venv/bin/python app.py      # Linux
 | `LORATOOL_WORK_DIR` | 工作目录 | 项目根目录 |
 | `LORATOOL_SECRET_KEY` | Flask 密钥 | 随机生成 |
 
-> **百度翻译**：如需标注修改页面的翻译功能，复制 `.env.example` 为 `.env` 并填入真实的 Baidu API Key。
+> **百度翻译**：如需标注修改页面的翻译功能，复制 `baidu_translate_config.example.json` 为 `baidu_translate_config.json` 并填入真实 API Key。
 
 ## 技术栈
 

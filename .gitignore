@@ -31,9 +31,7 @@ qwen_vl_config.json
 ollama_config.json
 aliyun_config.json
 db_config.py
-baidu_translate_config.json
 debug.log
-.env
 
 # PyInstaller
 *.manifest
