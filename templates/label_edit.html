@@ -65,7 +65,7 @@
 .label-card { transition: border-color .2s, box-shadow .2s; }
 .label-card:hover { border-color: rgba(var(--accent-rgb),.3); box-shadow: 0 0 16px rgba(var(--accent-rgb),.08); }
 .label-card textarea { resize: none; font-size: 12px; line-height: 1.6; }
-.label-card img { object-fit: cover; cursor: pointer; }
+.label-card img { object-fit: contain; cursor: pointer; max-height: 220px; background: var(--bg-primary); }
 </style>
 {% endblock %}
 
@@ -132,11 +132,11 @@ function renderGrid(items) {
         div.className = 'col-xl-3 col-lg-4 col-md-6 col-12';
         div.innerHTML =
             '<div class="card label-card border h-100">' +
-            '<div class="position-relative" style="height:180px;overflow:hidden;">' +
+            '<div class="position-relative d-flex align-items-center justify-content-center" style="min-height:160px;max-height:240px;overflow:hidden;background:var(--bg-primary);">' +
             '<a data-fancybox="gallery" href="' + imgSrc + '"><img src="' + imgSrc + '" class="w-100 h-100" loading="lazy" onerror="this.src=\'data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>' + '\\u{1F5BC}' + '</text></svg>\'"></a>' +
             '<span class="badge bg-dark position-absolute top-0 end-0 m-1" style="font-size:10px;">' + num + '</span></div>' +
             '<div class="card-body p-2">' +
-            '<textarea class="form-control label-card-textarea" rows="4" data-txtname="' + txtName + '" onblur="saveLabel(this)" style="font-size:12px;line-height:1.6;resize:none;">' + escHtml(txtContent) + '</textarea>' +
+            '<textarea class="form-control label-card-textarea" rows="6" data-txtname="' + txtName + '" onblur="saveLabel(this)" style="font-size:12px;line-height:1.6;resize:none;">' + escHtml(txtContent) + '</textarea>' +
             '<div class="d-flex justify-content-between mt-1">' +
             '<small class="text-truncate" style="color:var(--accent);" title="' + filename + '">' + filename + '</small>' +
             '<a href="javascript:void(0)" onclick="translateOne(this,\'zh2en\')" class="small text-decoration-none" style="color:var(--accent);">中译英</a>' +
