@@ -45,6 +45,11 @@ source venv/bin/activate    # Linux
 pip install -r requirements.txt
 ```
 
+> 如需 GPU 加速，先安装 CUDA 版 PyTorch：
+> ```bash
+> pip install torch==2.10.0 torchvision==0.25.0 torchaudio==2.10.0 --index-url https://download.pytorch.org/whl/cu128
+> ```
+
 ### 4. 下载模型（首次使用自动下载）
 
 Qwen 本地标注首次选择模型并点击"开始标注"时，会自动从 ModelScope 下载模型到 `models/Qwen/` 目录：
