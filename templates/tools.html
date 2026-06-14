@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container-fluid px-3 py-4" style="max-width:960px;">
+
+    <div class="mb-4">
+        <h1 class="fw-extrabold fs-3">其他工具</h1>
+        <p class="small" style="color:var(--accent);">精选工具导航 &middot; 点击直接访问</p>
+    </div>
+
+    <div class="row g-3">
+        {% set cats = [
+            ('图片裁剪', '#ef4444', [
+                ('PixCut','https://pixcut.toolooz.com/', True),
+                ('ImagesTool','https://imagestool.com/zh_CN/crop-images', False),
+                ('BatchImageCrop','https://batchimagecrop.com/', False),
+                ('IMGMl Crop','https://imgml.com/image-cropping.html', False),
+            ]),
+            ('图片抠图', '#f59e0b', [
+                ('抠图工具','https://www.koukoutu.com/removebgtool/all', True),
+                ('Koukoukou','https://koukoukou.cn/', False),
+                ('remove.bg','https://www.remove.bg/zh', False),
+            ]),
+            ('学习站点', '#10b981', [
+                ('B站（哔哩哔哩）','https://www.bilibili.com/', True),
+                ('中国大学MOOC','https://www.icourse163.org/', False),
+                ('爱课程','https://www.icourses.cn/', False),
+                ('网易公开课','https://open.163.com/', False),
+            ]),
+            ('AI绘画', 'var(--accent)', [
+                ('LibLib AI','https://www.liblib.art/', True),
+                ('ModelScope','https://www.modelscope.cn', False),
+                ('RunningHub','https://www.runninghub.cn/', False),
+                ('AALora','https://aalora.shop', False),
+                ('CNB Cool','https://cnb.cool/', False),
+            ]),
+            ('租云服务器', '#06b6d4', [
+                ('CompShare','https://passport.compshare.cn/register?referral_code=2CAFLiGoGDQGLVx86omnW7', True),
+                ('DDD Cloud','https://www.ddd.cn/', False),
+                ('PPIO','https://ppio.com/console', False),
+            ]),
+        ] %}
+        {% for title, color, links in cats %}
+        <div class="col-md-6 col-lg-4">
+            <div class="card card-glow border h-100">
+                <div class="card-header small fw-semibold text-uppercase d-flex align-items-center gap-2" style="border-top:3px solid {{ color }}; color:var(--accent);">
+                    <span class="badge rounded-1 px-2" style="background:{{ color }}18; color:{{ color }}; opacity:0.85;">{{ loop.index }}</span>
+                    {{ title }}
+                </div>
+                <div class="card-body p-2">
+                    {% for name, url, rec in links %}
+                    <a href="{{ url }}" target="_blank" class="d-flex align-items-center gap-2 px-2 py-1 rounded-2 small text-decoration-none" style="transition:all .15s; color:var(--accent);" onmouseover="this.style.background='var(--bg-hover)';this.style.color='var(--accent-hover)'" onmouseout="this.style.background='';this.style.color='var(--accent)'">
+                        <span class="flex-grow-1 text-truncate">{{ name }}</span>
+                        {% if rec %}<span class="badge rounded-pill px-2" style="background:rgba(var(--accent-rgb),.12);color:var(--accent);font-size:10px;">推荐</span>{% endif %}
+                        <span class="text-secondary small opacity-75">&nearr;</span>
+                    </a>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}

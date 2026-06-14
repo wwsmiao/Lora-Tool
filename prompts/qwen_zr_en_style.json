@@ -1,0 +1,3 @@
+{
+    "name":"千问-自然语言英语风格标注",
+    "prompt_text":"请为此图像生成自然语言的英文描述。它将用于训练Flux.1型号的风格LoRA。\n风格触发词：{chufaci}（必须出现在标题的开头）。\n要求：\n1.用清晰、简洁的英语句子描述图像的客观内容。\n2.包括细节，如主题（人/物），动作，服装，配饰，背景，灯光，颜色，构图。\n3. ** 严格避免 ** 任何描述艺术风格，质量，流派或媒介的词语（例如，“动漫风格”、“插图”、“杰作”、“高品质”、“数字艺术”、“油画”、“3D渲染”、“概念艺术”）。\n4.不要添加主观判断（例如，“美丽”、“令人惊叹”）。\n5.将标题保留为单个句子或短段落，不使用引号等额外标点符号。\n输出格式示例：\n{chufaci},A young woman with long black hair stands in a sunflower field, wearing a white dress and a straw hat, with a gentle sunset behind her.\n仅提供描述，不提供额外文本或解释。"}

@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container-fluid px-3 py-4" style="max-width:680px;">
+
+    <div class="mb-4">
+        <h1 class="fw-extrabold fs-3">字符串操作</h1>
+        <p class="text-muted small">批量替换或添加 txt 文本中的字符串</p>
+    </div>
+
+    <div class="card card-glow border mb-3">
+        <div class="card-body p-3">
+            <div class="mb-3"><label class="form-label fw-semibold small text-uppercase text-muted">文本路径</label>
+                <input class="form-control" id="txtPath" placeholder="D:\dataset\labels">
+            </div>
+            <div class="mb-3"><label class="form-label fw-semibold small text-uppercase text-muted">操作模式</label>
+                <select class="form-select" id="opMode" onchange="updateFields()">
+                    <option value="replace">替换 - 将文本中的字符串B替换为字符串A</option>
+                    <option value="add">添加 - 在文本开头添加字符串A</option>
+                </select>
+            </div>
+            <div class="mb-3"><label class="form-label fw-semibold small text-uppercase text-muted" id="labelA">字符串 A</label>
+                <input class="form-control" id="stringA" placeholder="输入字符串A">
+                <div class="form-text" id="hintA">替换模式下：替换后的内容（留空则删除B）</div>
+            </div>
+            <div class="mb-3" id="groupB"><label class="form-label fw-semibold small text-uppercase text-muted">字符串 B (被查找/替换)</label>
+                <input class="form-control" id="stringB" placeholder="输入要被替换的字符串">
+            </div>
+            <button class="btn btn-gradient w-100" id="startBtn" onclick="startStringOps()">执行操作</button>
+        </div>
+    </div>
+
+    <div class="progress d-none" id="progressBar" style="height:5px;"><div class="progress-bar" id="progressFill" style="background:linear-gradient(90deg,var(--accent),var(--accent2,#7b2fff));width:0;"></div></div>
+    <div class="mt-2 small" id="resultArea"></div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function updateFields() {
+    var m = document.getElementById('opMode').value;
+    if (m === 'replace') {
+        document.getElementById('groupB').classList.remove('d-none');
+        document.getElementById('labelA').textContent = '字符串 A (替换为)';
+        document.getElementById('hintA').textContent = '替换后的内容（留空则删除B）';
+    } else {
+        document.getElementById('groupB').classList.add('d-none');
+        document.getElementById('labelA').textContent = '字符串 A (添加内容)';
+        document.getElementById('hintA').textContent = '将添加到所有txt文件开头；若不存在txt文件，则自动创建';
+    }
+}
+updateFields();
+function startStringOps() {
+    var p = document.getElementById('txtPath').value.trim(), a = document.getElementById('stringA').value;
+    var b = document.getElementById('stringB').value, m = document.getElementById('opMode').value;
+    if (!p) { showToast('请填写文本路径', 'warning'); return; }
+    var btn = document.getElementById('startBtn'); btn.disabled = true; btn.textContent = '处理中...';
+    document.getElementById('progressBar').classList.remove('d-none');
+    document.getElementById('progressFill').style.width = '50%';
+    fetch('/string_ops/process', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({txt_path:p, string_a:a, string_b:b, op_mode:m}) })
+        .then(r=>r.json()).then(d=>{
+            document.getElementById('progressFill').style.width = '100%';
+            document.getElementById('resultArea').textContent = d.message;
+            showToast(d.message, d.success?'success':'error');
+        }).catch(e=>{ document.getElementById('resultArea').textContent = '请求失败: '+e.message; showToast('请求失败','error'); })
+        .finally(()=>{ btn.disabled=false; btn.textContent='执行操作'; setTimeout(()=>{ document.getElementById('progressBar').classList.add('d-none'); document.getElementById('progressFill').style.width='0%'; }, 800); });
+}
+</script>
+{% endblock %}

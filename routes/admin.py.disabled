@@ -1,0 +1,339 @@
+# -*- coding: utf-8 -*-
+"""
+Admin routes - User management and admin operations
+"""
+from flask import Blueprint, render_template, request, jsonify, make_response, session
+from functools import wraps
+from werkzeug.security import generate_password_hash
+from datetime import datetime, timedelta
+import pymysql
+from config_loader import load_db_config
+
+admin_bp = Blueprint('admin', __name__)
+
+
+# ── Decorators ────────────────────────────────────────────────
+
+def admin_required(f):
+    """Admin permission decorator"""
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if not session.get('user_id'):
+            return make_response(jsonify({'success': False, 'error': '请先登录'}), 401)
+        if not session.get('is_admin'):
+            return make_response(jsonify({'success': False, 'error': '需要管理员权限'}), 403)
+        return f(*args, **kwargs)
+    return decorated_function
+
+
+# ── Database Helper ────────────────────────────────────────────
+
+def get_db():
+    cfg = load_db_config()
+    conn = pymysql.connect(
+        host=cfg['host'],
+        port=cfg['port'],
+        user=cfg['user'],
+        password=cfg['password'],
+        database=cfg['database'],
+        charset=cfg['charset'],
+        cursorclass=pymysql.cursors.DictCursor
+    )
+    return conn
+
+
+# ── Routes ─────────────────────────────────────────────────────
+
+@admin_bp.route('/')
+@admin_required
+def admin_index():
+    return render_template('admin.html')
+
+
+@admin_bp.route('/api/users')
+@admin_required
+def get_users():
+    try:
+        page = int(request.args.get('page', 1))
+        page_size = int(request.args.get('page_size', 20))
+        search = request.args.get('search', '').strip()
+        sort_by = request.args.get('sort_by', 'created_at')
+        sort_order = request.args.get('sort_order', 'desc')
+
+        conn = get_db()
+        cursor = conn.cursor()
+
+        count_query = "SELECT COUNT(*) as total FROM users"
+        count_params = []
+        if search:
+            count_query += " WHERE username LIKE %s OR email LIKE %s"
+            count_params.extend([f'%{search}%', f'%{search}%'])
+
+        cursor.execute(count_query, count_params)
+        total = cursor.fetchone()['total']
+
+        query = """
+            SELECT id, username, email, vip_type, vip_start, vip_end, is_admin, created_at
+            FROM users
+        """
+        params = []
+
+        if search:
+            query += " WHERE username LIKE %s OR email LIKE %s"
+            params.extend([f'%{search}%', f'%{search}%'])
+
+        if sort_by in ['created_at', 'username', 'email', 'vip_type']:
+            query += f" ORDER BY {sort_by}"
+            if sort_order == 'asc':
+                query += " ASC"
+            else:
+                query += " DESC"
+
+        offset = (page - 1) * page_size
+        query += " LIMIT %s OFFSET %s"
+        params.extend([page_size, offset])
+
+        cursor.execute(query, params)
+        users = cursor.fetchall()
+
+        cursor.close()
+        conn.close()
+
+        return make_response(jsonify({
+            'success': True,
+            'users': users,
+            'total': total,
+            'page': page,
+            'page_size': page_size
+        }), 200)
+
+    except Exception as e:
+        return make_response(jsonify({'success': False, 'error': str(e)}), 500)
+
+
+@admin_bp.route('/api/users/<int:user_id>')
+@admin_required
+def get_user(user_id):
+    try:
+        conn = get_db()
+        cursor = conn.cursor()
+
+        cursor.execute("SELECT * FROM users WHERE id = %s", (user_id,))
+        user = cursor.fetchone()
+
+        cursor.close()
+        conn.close()
+
+        if not user:
+            return make_response(jsonify({'success': False, 'error': '用户不存在'}), 404)
+
+        if 'password_hash' in user:
+            del user['password_hash']
+
+        return make_response(jsonify({'success': True, 'user': user}), 200)
+
+    except Exception as e:
+        return make_response(jsonify({'success': False, 'error': str(e)}), 500)
+
+
+@admin_bp.route('/api/users', methods=['POST'])
+@admin_required
+def create_user():
+    try:
+        data = request.get_json()
+
+        username = data.get('username', '').strip()
+        email = data.get('email', '').strip()
+        password = data.get('password', '')
+        vip_type = data.get('vip_type', '')
+        is_admin = data.get('is_admin', False)
+
+        if not username:
+            return make_response(jsonify({'success': False, 'error': '用户名不能为空'}), 400)
+        if not email:
+            return make_response(jsonify({'success': False, 'error': '邮箱不能为空'}), 400)
+        if not password:
+            return make_response(jsonify({'success': False, 'error': '密码不能为空'}), 400)
+
+        conn = get_db()
+        cursor = conn.cursor()
+
+        cursor.execute("SELECT id FROM users WHERE email = %s", (email,))
+        if cursor.fetchone():
+            cursor.close()
+            conn.close()
+            return make_response(jsonify({'success': False, 'error': '邮箱已存在'}), 409)
+
+        password_hash = generate_password_hash(password)
+
+        vip_end = None
+        if vip_type == 'month':
+            vip_end = datetime.now() + timedelta(days=30)
+        elif vip_type == 'lifetime':
+            vip_end = None
+
+        query = """
+            INSERT INTO users (username, email, password_hash, vip_type, vip_end, is_admin, created_at)
+            VALUES (%s, %s, %s, %s, %s, %s, NOW())
+        """
+        cursor.execute(query, (username, email, password_hash, vip_type or None, vip_end, is_admin))
+        conn.commit()
+
+        user_id = cursor.lastrowid
+
+        cursor.close()
+        conn.close()
+
+        return make_response(jsonify({'success': True, 'user_id': user_id}), 201)
+
+    except Exception as e:
+        return make_response(jsonify({'success': False, 'error': str(e)}), 500)
+
+
+@admin_bp.route('/api/users/<int:user_id>', methods=['PUT'])
+@admin_required
+def update_user(user_id):
+    try:
+        data = request.get_json()
+
+        conn = get_db()
+        cursor = conn.cursor()
+
+        cursor.execute("SELECT id FROM users WHERE id = %s", (user_id,))
+        if not cursor.fetchone():
+            cursor.close()
+            conn.close()
+            return make_response(jsonify({'success': False, 'error': '用户不存在'}), 404)
+
+        update_fields = []
+        params = []
+
+        if 'username' in data:
+            update_fields.append("username = %s")
+            params.append(data['username'])
+
+        if 'email' in data:
+            cursor.execute("SELECT id FROM users WHERE email = %s AND id != %s", (data['email'], user_id))
+            if cursor.fetchone():
+                cursor.close()
+                conn.close()
+                return make_response(jsonify({'success': False, 'error': '邮箱已存在'}), 409)
+            update_fields.append("email = %s")
+            params.append(data['email'])
+
+        if 'password' in data and data['password']:
+            password_hash = generate_password_hash(data['password'])
+            update_fields.append("password_hash = %s")
+            params.append(password_hash)
+
+        if 'vip_type' in data:
+            update_fields.append("vip_type = %s")
+            params.append(data['vip_type'] or None)
+
+            if data['vip_type'] == 'month':
+                update_fields.append("vip_end = DATE_ADD(NOW(), INTERVAL 30 DAY)")
+            elif data['vip_type'] == 'lifetime':
+                update_fields.append("vip_end = NULL")
+            else:
+                update_fields.append("vip_end = NULL")
+
+        if 'is_admin' in data:
+            update_fields.append("is_admin = %s")
+            params.append(data['is_admin'])
+
+        if not update_fields:
+            cursor.close()
+            conn.close()
+            return make_response(jsonify({'success': False, 'error': '没有更新字段'}), 400)
+
+        params.append(user_id)
+        query = f"UPDATE users SET {', '.join(update_fields)} WHERE id = %s"
+        cursor.execute(query, params)
+        conn.commit()
+
+        cursor.close()
+        conn.close()
+
+        return make_response(jsonify({'success': True}), 200)
+
+    except Exception as e:
+        return make_response(jsonify({'success': False, 'error': str(e)}), 500)
+
+
+@admin_bp.route('/api/users/<int:user_id>', methods=['DELETE'])
+@admin_required
+def delete_user(user_id):
+    try:
+        if user_id == session.get('user_id'):
+            return make_response(jsonify({'success': False, 'error': '不能删除自己的账户'}), 400)
+
+        conn = get_db()
+        cursor = conn.cursor()
+
+        cursor.execute("SELECT id FROM users WHERE id = %s", (user_id,))
+        if not cursor.fetchone():
+            cursor.close()
+            conn.close()
+            return make_response(jsonify({'success': False, 'error': '用户不存在'}), 404)
+
+        cursor.execute("DELETE FROM users WHERE id = %s", (user_id,))
+        conn.commit()
+
+        cursor.close()
+        conn.close()
+
+        return make_response(jsonify({'success': True}), 200)
+
+    except Exception as e:
+        return make_response(jsonify({'success': False, 'error': str(e)}), 500)
+
+
+@admin_bp.route('/api/init-admin', methods=['POST'])
+def init_admin():
+    """Initialize admin account (one-time setup)"""
+    try:
+        data = request.get_json() or {}
+
+        # Security: require init_key from environment variable
+        import os
+        required_key = os.environ.get('LORATOOL_INIT_KEY', '')
+        if required_key:
+            if data.get('init_key', '') != required_key:
+                return make_response(jsonify({'success': False, 'error': '初始化密钥错误'}), 403)
+
+        conn = get_db()
+        cursor = conn.cursor()
+
+        cursor.execute("SELECT id FROM users WHERE is_admin = TRUE")
+        if cursor.fetchone():
+            cursor.close()
+            conn.close()
+            return make_response(jsonify({'success': False, 'error': '管理员账户已存在'}), 409)
+
+        email = data.get('email', '2403826556@qq.com')
+        password = data.get('password', 'Wayangjie37!')
+        username = data.get('username', '管理员')
+
+        cursor.execute("SELECT id FROM users WHERE email = %s", (email,))
+        if cursor.fetchone():
+            cursor.close()
+            conn.close()
+            return make_response(jsonify({'success': False, 'error': '邮箱已存在'}), 409)
+
+        password_hash = generate_password_hash(password)
+
+        vip_end = None
+        query = """
+            INSERT INTO users (username, email, password_hash, vip_type, vip_start, vip_end, is_admin, created_at)
+            VALUES (%s, %s, %s, 'lifetime', NOW(), %s, TRUE, NOW())
+        """
+        cursor.execute(query, (username, email, password_hash, vip_end))
+        conn.commit()
+
+        cursor.close()
+        conn.close()
+
+        return make_response(jsonify({'success': True, 'message': '管理员账户创建成功'}), 201)
+
+    except Exception as e:
+        return make_response(jsonify({'success': False, 'error': str(e)}), 500)

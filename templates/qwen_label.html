@@ -1,0 +1,281 @@
+{% extends "base.html" %}
+
+{% block head %}
+<style>
+/* Ollama-specific overrides */
+.algo-opt { padding: 14px; border: 2px solid var(--border); border-radius: 12px; cursor: pointer; transition: all .2s; background: var(--bg-tertiary); user-select: none; }
+.algo-opt:hover { border-color: rgba(var(--bs-primary-rgb, var(--accent-rgb)), .3); }
+.algo-opt.selected { border-color: var(--accent); background: rgba(var(--bs-primary-rgb, var(--accent-rgb)), .05); box-shadow: 0 0 16px rgba(var(--bs-primary-rgb, var(--accent-rgb)), .12); }
+.algo-opt .an { font-weight: 700; font-size: 13px; color: var(--text-primary); }
+.algo-opt .ad { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+.algo-opt .ab { display: inline-block; margin-top: 6px; padding: 1px 7px; border-radius: 4px; font-size: 10px; font-weight: 700; background: rgba(var(--bs-primary-rgb, var(--accent-rgb)), .08); color: var(--accent); }
+
+.log-box { height: 260px; overflow-y: auto; font-family: monospace; font-size: 12px; line-height: 1.8; background: var(--bg-primary); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; }
+.log-line { display: flex; gap: 6px; }
+.log-tag { font-weight: 700; font-size: 10px; min-width: 40px; flex-shrink: 0; }
+
+.dialog-overlay { display: none; position: fixed; inset: 0; z-index: 9999; background: rgba(0,0,0,.6); align-items: center; justify-content: center; backdrop-filter: blur(6px); }
+.dialog-overlay.open { display: flex; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-3 py-4" style="max-width:940px;">
+
+    <!-- Hero -->
+    <div class="card card-glow border mb-4 overflow-hidden">
+        <div class="card-body p-4" style="background: linear-gradient(135deg, rgba(var(--bs-primary-rgb, var(--accent-rgb)),.06), rgba(var(--bs-primary-rgb, var(--accent-rgb)),.02));">
+            <h1 class="fw-extrabold fs-3 mb-1">
+                <span style="background:linear-gradient(135deg,var(--accent),var(--accent2,#7b2fff));-webkit-background-clip:text;-webkit-text-fill-color:transparent;">Ollama</span>
+                <span> 本地标注</span>
+            </h1>
+            <p class="text-muted small mb-0 mt-1">Ollama 视觉模型批量打标 &middot; 支持任意 Ollama VL 模型 &middot; 流式输出</p>
+        </div>
+    </div>
+
+    <!-- Template -->
+    <div class="card card-glow border mb-3">
+        <div class="card-header d-flex align-items-center gap-2 py-2 px-3 small fw-semibold text-uppercase text-muted" style="letter-spacing:.5px;">
+            <span class="badge rounded-2 px-2 py-1" style="background:rgba(var(--bs-primary-rgb, var(--accent-rgb)),.12);color:var(--accent);">1</span>
+            提示词模板
+            <span id="tplStatus" class="ms-auto text-capitalize small">未选择</span>
+        </div>
+        <div class="card-body p-3">
+            <div class="d-flex gap-2 mb-3">
+                <button class="btn btn-gradient btn-sm" onclick="openCreateDialog()">+ 新建</button>
+                <button class="btn btn-outline-secondary btn-sm" onclick="refreshTemplates()">刷新</button>
+            </div>
+            <div class="d-flex flex-wrap gap-2 mb-3" id="templateGrid"></div>
+            <div id="templateEditor" class="d-none p-3 rounded-3 border mt-2" style="background:var(--bg-tertiary);">
+                <div class="mb-3"><label class="form-label small fw-semibold text-uppercase">名称</label><input class="form-control" id="templateName" placeholder="模板名称" oninput="debounceAutoSave()"></div>
+                <div class="mb-3"><label class="form-label small fw-semibold text-uppercase">提示词 &#123;chufaci&#125; 占位符</label><textarea class="form-control font-monospace small" id="promptText" rows="5" style="line-height:1.7;" oninput="debounceAutoSave()">{{ saved_prompt or '请用简短文字描述这张图片的内容。只输出描述文字。' }}</textarea></div>
+                <div id="promptPreviewBox" class="d-none p-3 rounded-3 bg-body border mb-3"><div class="small fw-semibold text-uppercase text-muted mb-1">预览</div><pre class="mb-0 small" id="promptPreview" style="white-space:pre-wrap;word-break:break-word;color:var(--text-primary);"></pre></div>
+                <div class="d-flex gap-2 flex-wrap">
+                    <button class="btn btn-outline-secondary btn-sm" onclick="previewPrompt()">预览</button>
+                    <button class="btn btn-gradient btn-sm" onclick="manualSaveTemplate()">保存</button>
+                    <button class="btn btn-outline-danger btn-sm" onclick="deleteCurrentTemplate()">删除</button>
+                    <button class="btn btn-outline-secondary btn-sm ms-auto" onclick="deselectTemplate()">取消选择</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Model + Trigger -->
+    <div class="row g-3 mb-3">
+        <div class="col-md-6">
+            <div class="card card-glow border h-100">
+                <div class="card-header d-flex align-items-center gap-2 py-2 px-3 small fw-semibold text-uppercase text-muted" style="letter-spacing:.5px;">
+                    <span class="badge rounded-2 px-2 py-1" style="background:rgba(var(--bs-primary-rgb, var(--accent-rgb)),.12);color:var(--accent);">2</span>
+                    模型配置
+                    <span class="ms-auto d-inline-flex align-items-center gap-2 badge border text-body" style="background:var(--bg-tertiary);">
+                        <span class="status-dot pulse" id="modelDot"></span>
+                        <span id="modelStatusText" class="small fw-normal">待检测</span>
+                    </span>
+                </div>
+                <div class="card-body p-3">
+                    <div class="mb-3"><label class="form-label small fw-semibold text-uppercase text-muted">Ollama 服务地址</label>
+                        <div class="input-group"><input class="form-control" id="ollamaUrl" placeholder="http://localhost:11434"><button class="btn btn-outline-secondary" onclick="testConnection()">检测</button></div>
+                    </div>
+                    <div class="mb-3"><label class="form-label small fw-semibold text-uppercase text-muted">模型</label>
+                        <div class="input-group"><select class="form-select" id="modelSelect"></select><button class="btn btn-outline-secondary" onclick="refreshModels()">刷新</button></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card card-glow border h-100">
+                <div class="card-header d-flex align-items-center gap-2 py-2 px-3 small fw-semibold text-uppercase text-muted" style="letter-spacing:.5px;">
+                    <span class="badge rounded-2 px-2 py-1" style="background:rgba(var(--bs-primary-rgb, var(--accent-rgb)),.12);color:var(--accent);">3</span>
+                    打标算法
+                </div>
+                <div class="card-body p-3">
+                    <div class="row g-2" id="algoGrid">
+                        <div class="col-6"><div class="algo-opt selected" data-algo="standard" onclick="selectAlgo('standard')"><div class="an">标准精度</div><div class="ad">全局感知，平衡质量速度</div><span class="ab">512t</span></div></div>
+                        <div class="col-6"><div class="algo-opt" data-algo="fast" onclick="selectAlgo('fast')"><div class="an">快速模式</div><div class="ad">精简输出，大批量快速</div><span class="ab">128t</span></div></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Path -->
+    <div class="card card-glow border mb-3">
+        <div class="card-header d-flex align-items-center gap-2 py-2 px-3 small fw-semibold text-uppercase text-muted" style="letter-spacing:.5px;">
+            <span class="badge rounded-2 px-2 py-1" style="background:rgba(var(--bs-primary-rgb, var(--accent-rgb)),.12);color:var(--accent);">4</span>
+            图片路径 &amp; 触发词
+        </div>
+        <div class="card-body p-3">
+            <div class="mb-3"><label class="form-label small fw-semibold text-uppercase text-muted">触发词（可选）</label>
+                <input class="form-control" id="chufaciInput" placeholder="mytrigger" oninput="onChufaciChange()">
+                <div class="form-text mt-1"><code>{chufaci}</code> &rarr; <strong id="chufaciTagDisplay" style="color:var(--accent);">{chufaci}</strong></div>
+            </div>
+            <div class="input-group mb-3">
+                <input class="form-control" id="imagePath" placeholder="D:\dataset\images">
+                <input type="file" id="imagePathPicker" webkitdirectory directory class="d-none" onchange="onImagePathPicked(event)">
+                <button class="btn btn-outline-secondary" onclick="pickImagePath()">选择</button>
+            </div>
+            <div class="form-check"><input class="form-check-input" type="checkbox" id="skipExisting" checked><label class="form-check-label small" for="skipExisting">跳过已有 .txt 标注</label></div>
+        </div>
+    </div>
+
+    <!-- Action -->
+    <div class="card card-glow border">
+        <div class="card-header d-flex align-items-center gap-2 py-2 px-3 small fw-semibold text-uppercase text-muted" style="letter-spacing:.5px;">
+            <span class="badge rounded-2 px-2 py-1" style="background:rgba(var(--bs-primary-rgb, var(--accent-rgb)),.12);color:var(--accent);">5</span>
+            执行标注
+        </div>
+        <div class="card-body p-3">
+            <div class="d-flex gap-3 mb-0">
+                <button class="btn btn-gradient w-100 py-3 fw-semibold" id="startBtn" onclick="startLabeling()">开始标注</button>
+                <button class="btn btn-danger w-100 py-3 fw-semibold d-none" id="cancelBtn" onclick="cancelLabeling()">取消标注</button>
+            </div>
+            <div id="progressWrap" class="d-none mt-4">
+                <div class="d-flex justify-content-between small mb-2"><span class="text-muted" id="progressText">准备中...</span><span class="fw-bold small" style="color:var(--accent);" id="progressPct">0%</span></div>
+                <div class="progress progress-glow" style="height:5px;"><div class="progress-bar" id="progressFill" style="width:0"></div></div>
+            </div>
+            <div id="statsRow" class="d-none row g-2 mt-3">
+                <div class="col-4"><div class="text-center p-3 rounded-3 border" style="background:var(--bg-tertiary);"><div class="fw-bold fs-4 text-success" id="statSuccess">0</div><div class="small text-uppercase text-muted">成功</div></div></div>
+                <div class="col-4"><div class="text-center p-3 rounded-3 border" style="background:var(--bg-tertiary);"><div class="fw-bold fs-4 text-danger" id="statError">0</div><div class="small text-uppercase text-muted">失败</div></div></div>
+                <div class="col-4"><div class="text-center p-3 rounded-3 border" style="background:var(--bg-tertiary);"><div class="fw-bold fs-4 text-warning" id="statSkipped">0</div><div class="small text-uppercase text-muted">跳过</div></div></div>
+            </div>
+            <div id="doneState" class="d-none text-center p-4 mt-3 rounded-4 border" style="background:var(--bg-tertiary);"><div class="fs-1 fw-bold text-success mb-1">OK</div><div class="fw-bold" id="doneMsg">标注完成</div><div class="small text-muted mt-1" id="doneSub"></div></div>
+            <div id="logWrap" class="d-none mt-3"><div class="log-box" id="procLog"></div></div>
+        </div>
+    </div>
+</div>
+
+<!-- Dialog -->
+<div class="dialog-overlay" id="createDialogOverlay" onclick="if(event.target===this)closeCreateDialog()">
+    <div class="card border shadow-lg p-4" style="width:480px;max-width:95vw;animation:modalIn .25s ease;">
+        <h5 class="fw-bold mb-3">新建提示词模板</h5>
+        <div class="mb-3"><label class="form-label small fw-semibold text-uppercase">模板名称</label><input class="form-control" id="dlgTemplateName" placeholder="人像标注"></div>
+        <div class="mb-3"><label class="form-label small fw-semibold text-uppercase">初始提示词（可选）</label><textarea class="form-control font-monospace small" id="dlgPromptText" rows="3" placeholder="留空使用默认提示词" style="line-height:1.7;"></textarea></div>
+        <div class="d-flex justify-content-end gap-2"><button class="btn btn-outline-secondary" onclick="closeCreateDialog()">取消</button><button class="btn btn-gradient" onclick="confirmCreateTemplate()">创建</button></div>
+    </div>
+</div>
+<style>@keyframes modalIn{from{opacity:0;transform:translateY(-10px) scale(.98)}to{opacity:1;transform:translateY(0) scale(1)}}</style>
+{% endblock %}
+
+{% block scripts %}
+<script>
+var templates=[],currentTemplateFile='',saveTimeout=null,abortController=null;
+var stats={success:0,error:0,skipped:0};
+var currentAlgo='standard';
+
+/* Init — async, non-blocking */
+document.addEventListener('DOMContentLoaded',function(){
+    refreshTemplates();
+    onChufaciChange();
+    refreshModels();
+    var saved={{(saved_template or '')|tojson}};
+    if(saved) setTimeout(function(){selectTemplate(saved);},500);
+});
+
+/* ── Model ─────────────────────────────────────────────── */
+function refreshModels(){
+    fetch('/qwen_label/get_models').then(r=>r.json()).then(d=>{
+        var s=document.getElementById('modelSelect'),cur=s.value;
+        s.innerHTML='';
+        (d.models||d.data||['qwen3-vl:8b']).forEach(function(m){
+            var v=typeof m==='string'?m:m.name||m.model||m;
+            s.innerHTML+='<option value="'+v+'">'+v+'</option>';
+        });
+        if(cur&&s.querySelector('option[value="'+cur+'"]')) s.value=cur;
+        // Restore saved model
+        {% if saved_model %}
+        var sm='{{saved_model}}'; if(sm&&s.querySelector('option[value="'+sm+'"]')) s.value=sm;
+        {% endif %}
+    }).catch(function(){});
+}
+function testConnection(){
+    var u=document.getElementById('ollamaUrl').value.trim(),d=document.getElementById('modelDot'),t=document.getElementById('modelStatusText');
+    d.classList.remove('on');d.classList.add('pulse');t.textContent='检测中...';
+    fetch('/qwen_label/test_connection',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ollama_url:u||'http://localhost:11434'})})
+    .then(r=>r.json()).then(function(r){
+        d.classList.remove('pulse');
+        if(r.success){d.classList.add('on');t.textContent='已连接';refreshModels();}
+        else{d.classList.remove('on');t.textContent='连接失败: '+r.message;showToast(r.message,'error');}
+    }).catch(function(e){d.classList.remove('pulse');t.textContent='检测失败';showToast('检测失败','error');});
+}
+function selectAlgo(a){currentAlgo=a;document.querySelectorAll('.algo-opt').forEach(function(c){c.classList.toggle('selected',c.dataset.algo===a);});}
+
+/* ── Image Path ────────────────────────────────────────── */
+function pickImagePath(){var p=document.getElementById('imagePathPicker');if(p)p.click();else{var x=prompt('图片目录路径:');if(x)document.getElementById('imagePath').value=x.trim();}}
+function onImagePathPicked(e){var f=e.target.files;if(f&&f.length){var r=f[0].webkitRelativePath||f[0].name,i=r.lastIndexOf('/');document.getElementById('imagePath').value=i>=0?r.substring(0,i):'';}e.target.value='';}
+function onChufaciChange(){var t=document.getElementById('chufaciTagDisplay');if(t)t.textContent=document.getElementById('chufaciInput').value.trim()||'{chufaci}';}
+
+/* ── Templates ─────────────────────────────────────────── */
+function refreshTemplates(){
+    fetch('/qwen_label/list_templates').then(r=>r.json()).then(d=>{
+        templates=d.templates||[];var g=document.getElementById('templateGrid');
+        g.innerHTML=templates.length?'':'<span class="text-muted small">暂无模板</span>';
+        templates.forEach(function(t){
+            var el=document.createElement('span');
+            el.className='badge rounded-pill border py-2 px-3 '+(t.filename===currentTemplateFile?'bg-primary bg-opacity-10 text-primary border-primary':'bg-body text-secondary');
+            el.style.cursor='pointer';el.dataset.file=t.filename;
+            el.innerHTML=(t.name||t.filename)+' <small class="text-muted opacity-50" onclick="event.stopPropagation();deleteTemplate(\''+escAttr(t.filename)+'\')" style="cursor:pointer;">&times;</small>';
+            el.onclick=function(){selectTemplate(t.filename)};g.appendChild(el);
+        });
+        updateTplStatus();
+    });
+}
+function updateTplStatus(){var e=document.getElementById('tplStatus');if(!currentTemplateFile){e.textContent='未选择';return;}var t=templates.find(function(x){return x.filename===currentTemplateFile});e.textContent=t?t.name:currentTemplateFile;}
+function selectTemplate(fn){currentTemplateFile=fn;document.querySelectorAll('#templateGrid .badge').forEach(function(b){var a=b.dataset.file===fn;b.className='badge rounded-pill border py-2 px-3 '+(a?'bg-primary bg-opacity-10 text-primary border-primary':'bg-body text-secondary');});updateTplStatus();document.getElementById('templateEditor').classList.remove('d-none');fetch('/qwen_label/load_template',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({filename:fn})}).then(r=>r.json()).then(d=>{if(d.success){document.getElementById('templateName').value=d.name||'';document.getElementById('promptText').value=d.prompt_text||'';}});}
+function deselectTemplate(){currentTemplateFile='';document.querySelectorAll('#templateGrid .badge').forEach(function(b){b.className='badge rounded-pill border py-2 px-3 bg-body text-secondary';});document.getElementById('templateEditor').classList.add('d-none');updateTplStatus();}
+function openCreateDialog(){document.getElementById('dlgTemplateName').value='';document.getElementById('dlgPromptText').value='';document.getElementById('createDialogOverlay').classList.add('open');setTimeout(function(){document.getElementById('dlgTemplateName').focus();},50);}
+function closeCreateDialog(){document.getElementById('createDialogOverlay').classList.remove('open');}
+function confirmCreateTemplate(){var n=document.getElementById('dlgTemplateName').value.trim(),p=document.getElementById('dlgPromptText').value.trim();if(!n){showToast('请输入模板名称','warning');return;}fetch('/qwen_label/create_template',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:n,prompt_text:p})}).then(r=>r.json()).then(d=>{if(d.success){closeCreateDialog();showToast('已创建','success');refreshTemplates();setTimeout(function(){selectTemplate(d.filename);},200);}else showToast(d.message,'error');});}
+function debounceAutoSave(){if(saveTimeout)clearTimeout(saveTimeout);saveTimeout=setTimeout(function(){if(currentTemplateFile)manualSaveTemplate();},800);}
+function manualSaveTemplate(){if(!currentTemplateFile){showToast('请先选择模板','warning');return;}fetch('/qwen_label/save_template',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({filename:currentTemplateFile,name:document.getElementById('templateName').value.trim(),prompt_text:document.getElementById('promptText').value})}).then(r=>r.json()).then(d=>{if(d.success){showToast('已保存','success',1500);refreshTemplates();}else showToast(d.message,'error');});}
+function deleteCurrentTemplate(){if(!currentTemplateFile)return;var t=templates.find(function(x){return x.filename===currentTemplateFile});if(!confirm('删除模板"'+ (t?t.name:currentTemplateFile) +'"？'))return;deleteTemplate(currentTemplateFile);}
+function deleteTemplate(fn){fetch('/qwen_label/delete_template',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({filename:fn})}).then(r=>r.json()).then(d=>{if(d.success){if(currentTemplateFile===fn)deselectTemplate();refreshTemplates();}});}
+function previewPrompt(){var raw=document.getElementById('promptText').value,cf=document.getElementById('chufaciInput').value.trim();var box=document.getElementById('promptPreviewBox'),pre=document.getElementById('promptPreview');if(!raw){box.classList.add('d-none');return;}pre.textContent=raw.replace(/{chufaci}/g,cf||'[TRIGGER]');box.classList.remove('d-none');}
+
+/* ── Labeling ──────────────────────────────────────────── */
+function startLabeling(){
+    var imagePath=document.getElementById('imagePath').value.trim(),prompt=document.getElementById('promptText').value.trim();
+    var chufaci=document.getElementById('chufaciInput').value.trim(),skipExisting=document.getElementById('skipExisting').checked;
+    var model=document.getElementById('modelSelect').value,ollamaUrl=document.getElementById('ollamaUrl').value.trim();
+    if(!imagePath){showToast('请填写图片目录路径','warning');return;}
+    if(abortController){abortController.abort();abortController=null;}
+    abortController=new AbortController();
+    document.getElementById('startBtn').classList.add('d-none');document.getElementById('cancelBtn').classList.remove('d-none');
+    stats={success:0,error:0,skipped:0};
+    document.getElementById('statSuccess').textContent='0';document.getElementById('statError').textContent='0';document.getElementById('statSkipped').textContent='0';
+    document.getElementById('progressFill').style.width='0%';document.getElementById('progressPct').textContent='0%';
+    document.getElementById('progressText').textContent='准备中...';document.getElementById('procLog').innerHTML='';
+    document.getElementById('progressWrap').classList.remove('d-none');document.getElementById('logWrap').classList.remove('d-none');
+    document.getElementById('statsRow').classList.remove('d-none');document.getElementById('doneState').classList.add('d-none');
+    fetch('/qwen_label/process_stream',{method:'POST',headers:{'Content-Type':'application/json'},signal:abortController.signal,
+        body:JSON.stringify({image_path:imagePath,prompt:prompt,chufaci:chufaci,skip_existing:skipExisting,model_name:model,ollama_url:ollamaUrl,max_tokens:currentAlgo==='fast'?128:512})})
+    .then(function(res){if(!res.ok)throw new Error('HTTP '+res.status);return res.body;})
+    .then(function(body){if(!body)throw new Error('Stream body is null');var reader=body.getReader(),decoder=new TextDecoder(),buffer='';
+        function read(){reader.read().then(function(r){if(r.done)return;buffer+=decoder.decode(r.value,{stream:true});
+            var chunks=buffer.split('\n\n');buffer=chunks.pop();
+            chunks.forEach(function(b){if(!b.trim())return;var ev='message',ds='';
+                b.split('\n').forEach(function(l){if(l.startsWith('event:'))ev=l.slice(6).trim();else if(l.startsWith('data:'))ds=l.slice(5).trim();});
+                if(ds){try{handleEvent(ev,JSON.parse(ds));}catch(e){}}
+            });read();
+        }).catch(function(e){addLog(e.name==='AbortError'?'text-info':'text-danger',e.name==='AbortError'?'[取消]':'[错误]',e.name==='AbortError'?'标注已取消':e.message);finishLabeling();});}read();})
+    .catch(function(e){addLog(e.name==='AbortError'?'text-info':'text-danger',e.name==='AbortError'?'[取消]':'[错误]',e.name==='AbortError'?'标注已取消':e.message);finishLabeling();});
+
+    function handleEvent(ev,d){
+        if(ev==='error'){addLog('text-danger','[错误]',d.message);showToast(d.message,'error');finishLabeling();return;}
+        if(ev==='start'){addLog('text-info','[开始]','模型就绪，开始处理...');}
+        else if(ev==='progress'){var p=Math.round(d.current/d.total*100);document.getElementById('progressFill').style.width=p+'%';document.getElementById('progressPct').textContent=p+'%';document.getElementById('progressText').textContent=d.filename||'';
+            var t,c;if(d.status==='success'){t='[成功]';c='text-success';stats.success++;}
+            else if(d.status==='error'){t='[失败]';c='text-danger';stats.error++;}
+            else if(d.status==='skipped'){t='[跳过]';c='text-warning';stats.skipped++;}
+            else{t='[处理]';c='text-info';}
+            document.getElementById('statSuccess').textContent=stats.success;document.getElementById('statError').textContent=stats.error;document.getElementById('statSkipped').textContent=stats.skipped;
+            addLog(c,t,d.current+'/'+d.total+'  '+(d.filename||'')+'  '+d.message);
+        }else if(ev==='complete'){addLog('text-success','[完成]',d.message);showToast(d.message,'success');finishLabeling();}
+    }
+    function addLog(cls,tag,msg){var log=document.getElementById('procLog'),div=document.createElement('div');div.className='log-line';div.innerHTML='<span class="log-tag '+cls+'">'+tag+'</span><span>'+escHtml(msg)+'</span>';log.appendChild(div);log.scrollTop=log.scrollHeight;}
+    function finishLabeling(){abortController=null;document.getElementById('startBtn').classList.remove('d-none');document.getElementById('cancelBtn').classList.add('d-none');document.getElementById('doneState').classList.remove('d-none');document.getElementById('doneMsg').textContent=(stats.success+stats.error+stats.skipped)?'标注完成':'已停止';document.getElementById('doneSub').textContent='成功 '+stats.success+'  |  失败 '+stats.error+'  |  跳过 '+stats.skipped;document.getElementById('progressWrap').classList.add('d-none');}
+}
+function cancelLabeling(){if(abortController){fetch('/qwen_label/cancel',{method:'POST'});abortController.abort();abortController=null;}}
+function escHtml(s){var d=document.createElement('div');d.textContent=s;return d.innerHTML;}
+function escAttr(s){return s.replace(/'/g,"\\'").replace(/"/g,'&quot;');}
+</script>
+{% endblock %}

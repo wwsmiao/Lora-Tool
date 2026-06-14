@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+
+{% block head %}
+<style>
+.fs-log { font-family: var(--bs-font-monospace); font-size: 12px; line-height: 1.8; max-height: 380px; overflow-y: auto; background: var(--bg-primary); border: 1px solid var(--border); border-radius: 12px; padding: 14px; }
+.fs-log .ok { color: var(--bs-success); } .fs-log .skip { color: var(--bs-warning); } .fs-log .err { color: var(--bs-danger); } .fs-log .sum { font-weight: 600; padding-top: 4px; border-top: 1px dashed var(--border); margin-top: 6px; color: var(--text-primary); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-3 py-4" style="max-width:680px;">
+
+    <div class="mb-4">
+        <h1 class="fw-extrabold fs-3">人脸图像分割</h1>
+        <p class="text-muted small">自动检测图片中的人脸并裁剪保存为指定尺寸（MTCNN 深度学习模型）</p>
+    </div>
+
+    <div class="card card-glow border mb-3">
+        <div class="card-body p-3">
+            <div class="mb-3"><label class="form-label fw-semibold small text-uppercase" style="color:var(--bs-tertiary-color);">图片路径</label><input class="form-control" id="imagePath" placeholder="D:\photos\input"></div>
+            <div class="row g-2 mb-3">
+                <div class="col-6"><label class="form-label fw-semibold small text-uppercase" style="color:var(--bs-tertiary-color);">人脸尺寸 (px)</label><input type="number" class="form-control" id="faceSize" value="512" min="32" max="2048"></div>
+                <div class="col-6"><label class="form-label fw-semibold small text-uppercase" style="color:var(--bs-tertiary-color);">置信度 (0.1~1.0)</label><input type="number" class="form-control" id="minConfidence" value="0.60" min="0.1" max="1.0" step="0.05"></div>
+            </div>
+            <div class="mb-3"><label class="form-label fw-semibold small text-uppercase" style="color:var(--bs-tertiary-color);">人脸输出路径</label><input class="form-control" id="outputPath" placeholder="D:\photos\faces_output"></div>
+            <button class="btn btn-gradient w-100" id="startBtn" onclick="startFaceSplit()">开始分割</button>
+        </div>
+    </div>
+
+    <div id="fsProgressWrap" class="d-none mb-2"><div class="d-flex justify-content-between small mb-1"><span id="fsStatusText">准备中...</span><span id="fsCountText">0 / 0</span></div><div class="progress" style="height:5px;"><div class="progress-bar bg-success" id="fsBarFill" style="width:0;"></div></div></div>
+    <div class="fs-log" id="fsLog"></div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function startFaceSplit() {
+    var p=document.getElementById('imagePath').value.trim(), s=document.getElementById('faceSize').value.trim();
+    var o=document.getElementById('outputPath').value.trim(), c=document.getElementById('minConfidence').value.trim();
+    if(!p||!o){showToast('请填写图片路径和输出路径','warning');return;}
+    var b=document.getElementById('startBtn');b.disabled=true;b.textContent='处理中...';
+    var wrap=document.getElementById('fsProgressWrap');wrap.classList.remove('d-none');
+    var log=document.getElementById('fsLog');log.innerHTML='';
+    var bar=document.getElementById('fsBarFill'),st=document.getElementById('fsStatusText'),ct=document.getElementById('fsCountText');
+    bar.style.width='0%';st.textContent='准备中...';ct.textContent='0 / 0';
+    fetch('/face_split/process',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({image_path:p,face_size:s,output_path:o,min_confidence:c})})
+        .then(function(r){return r.text()}).then(function(txt){
+            var lines=txt.trim().split('\n'),total=0,success=0,skipped=0,errors=0;
+            // Check if it's an error JSON response
+            try { var j=JSON.parse(txt); if(!j.success) { log.innerHTML='<div class="err">'+j.message+'</div>'; showToast(j.message,'error'); b.disabled=false;b.textContent='开始分割'; return; } } catch(e){}
+            lines.forEach(function(line){
+                if(line.startsWith('__total__:')){ total=parseInt(line.split(':')[1]); bar.style.maxWidth='100%'; return; }
+                var parts=line.split('|'); if(parts.length<2) return;
+                var idx=parts[0], statusText=parts.slice(1).join('|');
+                bar.style.width=(idx/total*100)+'%';
+                st.textContent='处理中...'; ct.textContent=idx+' / '+total;
+                if(statusText.indexOf('失败')>=0||statusText.indexOf('出错')>=0||statusText.indexOf('无法')>=0){ log.innerHTML+='<div class="err">'+statusText+'</div>'; errors++; }
+                else if(statusText.indexOf('跳过')>=0||statusText.indexOf('未检测')>=0||statusText.indexOf('低于阈值')>=0){ log.innerHTML+='<div class="skip">'+statusText+'</div>'; skipped++; }
+                else{ log.innerHTML+='<div class="ok">'+statusText+'</div>'; success++; }
+            });
+            var totalFaces=success; var failedImgs=skipped+errors;
+            log.innerHTML+='<div class="sum">完成: 成功人脸 '+totalFaces+' / 跳过或失败 '+failedImgs+' / 总计图片 '+total+'</div>';
+            showToast('分割完成','success');
+            b.disabled=false;b.textContent='开始分割';
+        }).catch(function(e){log.innerHTML='<div class="err">请求失败: '+e.message+'</div>';showToast('请求失败','error');b.disabled=false;b.textContent='开始分割';});
+}
+</script>
+{% endblock %}

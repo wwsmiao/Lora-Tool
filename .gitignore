@@ -1,0 +1,38 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+*.spec
+
+# Virtual environment
+venv/
+env/
+.venv/
+
+# Model files (large binaries, download separately)
+models/
+
+# Uploads / temp
+static/uploads/*
+!static/uploads/.gitkeep
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Config with secrets
+qwen_vl_config.json
+ollama_config.json
+aliyun_config.json
+db_config.py
+baidu_translate_config.json
+debug.log
+
+# PyInstaller
+*.manifest

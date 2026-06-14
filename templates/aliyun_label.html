@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container-fluid px-3 py-4" style="max-width:720px;">
+
+    <div class="mb-4">
+        <h1 class="fw-extrabold fs-3">阿里云 API 标注</h1>
+        <p class="text-muted small">使用阿里云 DashScope API (Qwen3.5) 自动生成图片标注</p>
+    </div>
+
+    <div class="card card-glow border mb-3">
+        <div class="card-header small fw-semibold text-uppercase text-muted">前置条件</div>
+        <div class="card-body p-3 small lh-lg" style="color:var(--text-secondary);">
+            1. 在 <a href="https://dashscope.console.aliyun.com" target="_blank" style="color:var(--accent);">阿里云 DashScope 控制台</a> 获取 API Key<br>
+            2. 开通视觉理解模型服务 (qwen3.5-plus 或 qwen3.5-27b)<br>
+            3. API Key 保存后可重复使用
+        </div>
+    </div>
+
+    <div class="card card-glow border mb-3">
+        <div class="card-header small fw-semibold text-uppercase text-muted">API Key 配置</div>
+        <div class="card-body p-3">
+            <div class="input-group mb-2">
+                <input type="password" class="form-control" id="apiKey" placeholder="sk-xxxxxxxxxxxxxxxx">
+                <button class="btn btn-gradient" id="saveConfigBtn" onclick="saveConfig()">保存配置</button>
+            </div>
+            <div id="apiKeyStatus" class="form-text">加载中...</div>
+        </div>
+    </div>
+
+    <div class="card card-glow border mb-3">
+        <div class="card-body p-3">
+            <div class="row g-2 mb-3">
+                <div class="col-6"><label class="form-label fw-semibold small text-uppercase text-muted">模型</label>
+                    <select class="form-select" id="modelName">
+                        <option value="qwen3.5-plus">qwen3.5-plus (推荐)</option>
+                        <option value="qwen3.5-27b">qwen3.5-27b (更强)</option>
+                    </select>
+                </div>
+                <div class="col-6"><label class="form-label fw-semibold small text-uppercase text-muted">提示词模板</label>
+                    <select class="form-select" id="templateSelect" onchange="loadTemplate()"><option value="">-- 选择模板 --</option></select>
+                </div>
+            </div>
+            <div class="mb-3"><label class="form-label fw-semibold small text-uppercase text-muted">触发词（可选）</label>
+                <input class="form-control" id="chufaciInput" placeholder="ohwx, person1">
+            </div>
+            <div class="mb-3"><label class="form-label fw-semibold small text-uppercase text-muted">图片路径</label>
+                <input class="form-control" id="imagePath" placeholder="D:\dataset\images">
+            </div>
+            <div class="mb-3"><label class="form-label fw-semibold small text-uppercase text-muted">提示词</label>
+                <textarea class="form-control font-monospace small" id="promptText" rows="5" style="line-height:1.7;">请用简短的文字描述这张图片的内容，用于训练AI模型，只输出描述文字。</textarea>
+            </div>
+            <button class="btn btn-gradient w-100" id="startBtn" onclick="startLabeling()">开始标注</button>
+        </div>
+    </div>
+
+    <div class="progress d-none" id="progressBar" style="height:5px;"><div class="progress-bar" id="progressFill" style="background:linear-gradient(90deg,var(--accent),var(--accent2,#7b2fff));width:0;"></div></div>
+    <div class="mt-2 small" id="resultArea"></div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() { loadConfig(); loadTemplateList(); });
+function loadConfig() {
+    fetch('/aliyun_label/get_config').then(r=>r.json()).then(d=>{
+        if(d.success){
+            var s=document.getElementById('apiKeyStatus');
+            s.innerHTML = d.api_key_saved ? '<span class="text-success">已保存 API Key: <code>'+d.api_key_masked+'</code></span> <span class="text-muted">(刷新后仍可使用)</span>' : '尚未保存 API Key，请填写后点击保存';
+            if(d.last_model) document.getElementById('modelName').value=d.last_model;
+            if(d.last_chufaci) document.getElementById('chufaciInput').value=d.last_chufaci;
+            if(d.last_template||d.last_prompt) window.__pr={template:d.last_template, prompt:d.last_prompt};
+        }
+    });
+}
+function saveConfig(){var a=document.getElementById('apiKey').value.trim(),m=document.getElementById('modelName').value,c=document.getElementById('chufaciInput').value.trim(),t=document.getElementById('templateSelect').value,p=document.getElementById('promptText').value.trim();if(!a){showToast('请先填写 API Key','warning');return;}fetch('/aliyun_label/save_config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({api_key:a,model:m,chufaci:c,template_file:t,prompt:p})}).then(r=>r.json()).then(d=>{if(d.success){showToast('配置已保存','success');loadConfig();}else showToast(d.message,'error');});}
+function loadTemplateList(){fetch('/aliyun_label/list_templates').then(r=>r.json()).then(d=>{if(d.success&&d.templates.length>0){var s=document.getElementById('templateSelect');d.templates.forEach(function(t){var o=document.createElement('option');o.value=t.filename;o.textContent=t.name;s.appendChild(o);});if(window.__pr){if(window.__pr.template)s.value=window.__pr.template;if(window.__pr.prompt)document.getElementById('promptText').value=window.__pr.prompt;window.__pr=null;}}else if(window.__pr&&window.__pr.prompt){document.getElementById('promptText').value=window.__pr.prompt;window.__pr=null;}});}
+function loadTemplate(){var f=document.getElementById('templateSelect').value;if(!f)return;fetch('/aliyun_label/load_template',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({filename:f})}).then(r=>r.json()).then(d=>{if(d.success){document.getElementById('promptText').value=d.prompt_text;showToast('已加载模板: '+d.name,'success');saveTemplatePref(f,d.prompt_text);}else showToast(d.message,'error');});}
+function saveTemplatePref(f,p){fetch('/aliyun_label/save_config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({api_key:'',model:document.getElementById('modelName').value,chufaci:document.getElementById('chufaciInput').value.trim(),template_file:f,prompt:p})});}
+function startLabeling(){var p=document.getElementById('imagePath').value.trim(),m=document.getElementById('modelName').value,pr=document.getElementById('promptText').value.trim(),c=document.getElementById('chufaciInput').value.trim();if(!p){showToast('请填写图片路径','warning');return;}var a=document.getElementById('apiKey').value.trim(),b=document.getElementById('startBtn');b.disabled=true;b.textContent='标注中...';document.getElementById('progressBar').classList.remove('d-none');document.getElementById('progressFill').style.width='10%';fetch('/aliyun_label/process',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({image_path:p,api_key:a,model_name:m,prompt:pr,chufaci:c})}).then(r=>r.json()).then(d=>{document.getElementById('progressFill').style.width='100%';document.getElementById('resultArea').textContent=d.message;showToast(d.message,d.success?'success':'error');}).catch(function(e){document.getElementById('resultArea').textContent='请求失败: '+e.message;showToast('请求失败','error');}).finally(function(){b.disabled=false;b.textContent='开始标注';setTimeout(function(){document.getElementById('progressBar').classList.add('d-none');document.getElementById('progressFill').style.width='0%';},800);});}
+</script>
+{% endblock %}

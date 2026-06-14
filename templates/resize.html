@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container-fluid px-3 py-4" style="max-width:680px;">
+
+    <div class="mb-4">
+        <h1 class="fw-extrabold fs-3">图片批量尺寸重设</h1>
+        <p class="text-muted small">批量调整图片尺寸，支持等比缩放、填充、精确尺寸</p>
+    </div>
+
+    <div class="card card-glow border mb-3">
+        <div class="card-body p-3">
+            <div class="mb-3"><label class="form-label fw-semibold small text-uppercase text-muted">图片路径</label>
+                <input class="form-control" id="imagePath" placeholder="D:\photos\input">
+            </div>
+            <div class="row g-2 mb-3">
+                <div class="col-6"><label class="form-label fw-semibold small text-uppercase text-muted">目标宽度 (px)</label><input type="number" class="form-control" id="targetWidth" value="512" min="0"></div>
+                <div class="col-6"><label class="form-label fw-semibold small text-uppercase text-muted">目标高度 (px)</label><input type="number" class="form-control" id="targetHeight" value="512" min="0"></div>
+            </div>
+            <div class="mb-3"><label class="form-label fw-semibold small text-uppercase text-muted">缩放模式</label>
+                <select class="form-select" id="scaleMode">
+                    <option value="fit">等比缩放 (fit) - 不超出目标尺寸</option>
+                    <option value="fill">等比填充 (fill) - 覆盖目标区域</option>
+                    <option value="exact">精确尺寸 (exact) - 可能变形</option>
+                </select>
+            </div>
+            <div class="mb-3"><label class="form-label fw-semibold small text-uppercase text-muted">输出路径 (留空=覆盖原文件)</label>
+                <input class="form-control" id="outputPath" placeholder="留空则在原路径覆盖保存">
+            </div>
+            <button class="btn btn-gradient w-100" id="startBtn" onclick="startResize()">开始调整</button>
+        </div>
+    </div>
+
+    <div class="progress d-none" id="progressBar" style="height:5px;"><div class="progress-bar" id="progressFill" style="background:linear-gradient(90deg,var(--accent),var(--accent2,#7b2fff));width:0;"></div></div>
+    <div class="mt-2 small" id="resultArea"></div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function startResize() {
+    var p = document.getElementById('imagePath').value.trim(), w = document.getElementById('targetWidth').value;
+    var h = document.getElementById('targetHeight').value, m = document.getElementById('scaleMode').value;
+    var o = document.getElementById('outputPath').value.trim();
+    if (!p) { showToast('请填写图片路径', 'warning'); return; }
+    var b = document.getElementById('startBtn'); b.disabled = true; b.textContent = '处理中...';
+    document.getElementById('progressBar').classList.remove('d-none');
+    document.getElementById('progressFill').style.width = '50%';
+    fetch('/resize/process', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({image_path:p, width:w, height:h, mode:m, output_path:o}) })
+        .then(r=>r.json()).then(d=>{
+            document.getElementById('progressFill').style.width = '100%';
+            document.getElementById('resultArea').textContent = d.message;
+            showToast(d.message, d.success?'success':'error');
+        }).catch(e=>{ document.getElementById('resultArea').textContent = '请求失败: '+e.message; showToast('请求失败','error'); })
+        .finally(()=>{ b.disabled=false; b.textContent='开始调整'; setTimeout(()=>{ document.getElementById('progressBar').classList.add('d-none'); document.getElementById('progressFill').style.width='0%'; }, 800); });
+}
+</script>
+{% endblock %}

@@ -1,0 +1,941 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LoraTool - 图像标注工具集</title>
+    <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v=20260415">
+    <!-- Fancybox 3 (requires jQuery) -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fancyapps/fancybox@3.5.7/dist/jquery.fancybox.min.css" />
+    <script src="https://cdn.jsdelivr.net/npm/jquery@3.7.1/dist/jquery.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@fancyapps/fancybox@3.5.7/dist/jquery.fancybox.min.js"></script>
+    <style id="theme-dynamic"></style>
+    <style>
+        /* ── Auth Header Bar ──────────────────────────────── */
+        .auth-bar {
+            position: fixed;
+            top: 0; right: 0;
+            z-index: 9999;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 18px;
+        }
+        .auth-bar .username-display {
+            font-size: 13px;
+            color: var(--accent);
+            font-weight: 600;
+            display: none;
+        }
+        .auth-bar .btn-auth {
+            background: var(--accent);
+            color: #fff;
+            border: none;
+            padding: 6px 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 600;
+            transition: background 0.2s;
+            display: none;
+        }
+        .auth-bar .btn-auth:hover { background: var(--accent-hover); }
+        .auth-bar .btn-logout {
+            background: transparent;
+            border: 1px solid var(--border);
+            color: var(--text-secondary);
+            padding: 5px 14px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.2s;
+            display: none;
+        }
+        .auth-bar .btn-logout:hover { background: var(--bg-hover); color: var(--text-primary); }
+        /* Show login button when NOT logged in */
+        .auth-bar:not(.logged-in) .btn-auth { display: inline; }
+        .auth-bar.logged-in .username-display { display: inline; }
+        .auth-bar.logged-in .btn-logout { display: inline; }
+
+        /* ── Auth Modal ──────────────────────────────────── */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.55);
+            z-index: 10000;
+            justify-content: center;
+            align-items: center;
+            backdrop-filter: blur(4px);
+        }
+        .modal-overlay.show { display: flex; }
+
+        .modal-box {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            width: 400px;
+            max-width: 95vw;
+            overflow: hidden;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+            animation: modalIn 0.2s ease;
+            position: relative;
+        }
+        @keyframes modalIn {
+            from { transform: scale(0.92); opacity: 0; }
+            to   { transform: scale(1);    opacity: 1; }
+        }
+
+        .modal-tabs {
+            display: flex;
+            border-bottom: 1px solid var(--border);
+        }
+        .modal-tab {
+            flex: 1;
+            padding: 14px;
+            text-align: center;
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text-muted);
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            transition: all 0.2s;
+        }
+        .modal-tab:hover { color: var(--text-secondary); }
+        .modal-tab.active {
+            color: var(--accent);
+            border-bottom-color: var(--accent);
+        }
+
+        .modal-body { padding: 24px 28px 28px; }
+
+        .form-group {
+            margin-bottom: 14px;
+        }
+        .form-group label {
+            display: block;
+            font-size: 12px;
+            color: var(--text-muted);
+            margin-bottom: 6px;
+            font-weight: 500;
+        }
+        .form-group input {
+            width: 100%;
+            box-sizing: border-box;
+            padding: 10px 12px;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--text-primary);
+            font-size: 14px;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        .form-group input:focus {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px var(--accent-glow);
+        }
+        .form-group input::placeholder { color: var(--text-muted); }
+
+        /* Verify code row */
+        .verify-row {
+            display: flex;
+            gap: 8px;
+            align-items: flex-end;
+        }
+        .verify-row .form-group { flex: 1; margin-bottom: 0; }
+        .btn-send-code {
+            flex-shrink: 0;
+            height: 42px;
+            padding: 0 14px;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border);
+            color: var(--accent);
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            white-space: nowrap;
+        }
+        .btn-send-code:hover { background: var(--bg-hover); border-color: var(--accent); }
+        .btn-send-code:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        /* Login mode toggle */
+        .mode-toggle {
+            display: flex;
+            gap: 0;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            overflow: hidden;
+            margin-bottom: 14px;
+        }
+        .mode-toggle .mode-btn {
+            flex: 1;
+            padding: 8px;
+            text-align: center;
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-muted);
+            background: transparent;
+            border: none;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .mode-toggle .mode-btn.active {
+            background: var(--accent);
+            color: #fff;
+        }
+        .mode-toggle .mode-btn:not(.active):hover {
+            background: var(--bg-hover);
+            color: var(--text-primary);
+        }
+
+        .btn-primary {
+            width: 100%;
+            padding: 11px;
+            background: var(--accent);
+            color: #fff;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s, transform 0.1s;
+            margin-top: 6px;
+        }
+        .btn-primary:hover { background: var(--accent-hover); }
+        .btn-primary:active { transform: scale(0.98); }
+        .btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
+
+        .modal-error {
+            background: var(--error-glow);
+            border: 1px solid var(--error);
+            color: var(--error);
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            margin-bottom: 14px;
+            display: none;
+        }
+        .modal-error.show { display: block; }
+
+        .modal-link {
+            text-align: center;
+            font-size: 12px;
+            color: var(--text-muted);
+            margin-top: 14px;
+        }
+        .modal-link a { color: var(--accent); cursor: pointer; text-decoration: none; }
+        .modal-link a:hover { text-decoration: underline; }
+
+        .modal-close {
+            position: absolute;
+            top: 12px; right: 14px;
+            background: transparent;
+            border: none;
+            color: var(--text-muted);
+            font-size: 18px;
+            cursor: pointer;
+            line-height: 1;
+            padding: 4px;
+        }
+        .modal-close:hover { color: var(--text-primary); }
+
+        /* ── Theme Toggle ────────────────────────────────── */
+        .sidebar-footer {
+            padding: 12px 16px;
+            border-top: 1px solid var(--border);
+        }
+        .theme-toggle {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 24px;
+            padding: 8px 16px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+        }
+
+        .theme-toggle:hover {
+            background: var(--bg-hover);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+        }
+
+        .theme-toggle:active {
+            transform: translateY(0);
+        }
+
+        .theme-toggle-icon {
+            font-size: 20px;
+            display: inline-block;
+            transition: transform 0.3s ease;
+        }
+
+        .theme-toggle:hover .theme-toggle-icon {
+            transform: scale(1.1) rotate(15deg);
+        }
+
+        .theme-toggle-label {
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--text-secondary);
+            transition: color 0.2s ease;
+        }
+
+        .theme-toggle:hover .theme-toggle-label {
+            color: var(--text-primary);
+        }
+
+        /* 主题图标动画 */
+        @keyframes themeIconChange {
+            0% { transform: scale(1) rotate(0deg); opacity: 1; }
+            50% { transform: scale(0.8) rotate(180deg); opacity: 0.5; }
+            100% { transform: scale(1) rotate(360deg); opacity: 1; }
+        }
+
+        .theme-toggle-icon.changing {
+            animation: themeIconChange 0.4s ease;
+        }
+
+        /* ── VIP Badge ───────────────────────────────────── */
+        .vip-badge {
+            font-size: 10px;
+            background: linear-gradient(135deg, var(--accent), var(--accent-hover));
+            color: #fff;
+            padding: 2px 6px;
+            border-radius: 4px;
+            margin-left: 8px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        .nav-item[data-vip="true"] {
+            position: relative;
+        }
+        /* 非VIP用户时VIP功能菜单项变灰 */
+        .nav-item.vip-locked {
+            opacity: 0.5;
+        }
+        .nav-item.vip-locked .vip-badge {
+            background: linear-gradient(135deg, var(--text-muted), var(--border));
+        }
+</style></head>
+<body data-theme="night">
+    <!-- Auth Bar (top-right) -->
+    <div class="auth-bar" id="authBar">
+        <span class="username-display" id="usernameDisplay"></span>
+        <button class="btn-auth" id="btnAuth" onclick="openAuthModal('login')">登录 / 注册</button>
+        <button class="btn-logout" id="btnLogout" onclick="doLogout()">退出</button>
+    </div>
+
+    <!-- Auth Modal -->
+    <div class="modal-overlay" id="authModal" onclick="if(event.target===this)closeAuthModal()">
+        <div class="modal-box">
+            <button class="modal-close" onclick="closeAuthModal()">&times;</button>
+            <div class="modal-tabs">
+                <div class="modal-tab active" id="tabLogin" onclick="switchTab('login')">登录</div>
+                <div class="modal-tab" id="tabRegister" onclick="switchTab('register')">注册</div>
+                <div class="modal-tab" id="tabReset" onclick="switchTab('reset')">重置密码</div>
+            </div>
+            <div class="modal-body">
+
+                <!-- Login Form -->
+                <div id="formLogin">
+                    <!-- 登录方式切换：密码 / 验证码 -->
+                    <div class="mode-toggle" style="margin-bottom:14px;">
+                        <button class="mode-btn active" id="modePwd" onclick="setLoginMode('pwd')">密码登录</button>
+                        <button class="mode-btn" id="modeCode" onclick="setLoginMode('code')">邮箱验证码登录</button>
+                    </div>
+
+                    <div class="modal-error" id="loginError"></div>
+
+                    <div class="form-group">
+                        <label>用户名 / 邮箱</label>
+                        <input type="text" id="loginUsername" placeholder="请输入用户名或邮箱" autocomplete="username">
+                    </div>
+
+                    <!-- 密码登录 -->
+                    <div id="pwdLoginArea">
+                        <div class="form-group">
+                            <label>密码</label>
+                            <input type="password" id="loginPassword" placeholder="请输入密码" autocomplete="current-password"
+                                   onkeydown="if(event.key==='Enter')doLogin()">
+                        </div>
+                    </div>
+
+                    <!-- 验证码登录 -->
+                    <div id="codeLoginArea" style="display:none;">
+                        <div class="verify-row">
+                            <div class="form-group">
+                                <label>验证码</label>
+                                <input type="text" id="loginCode" placeholder="6位数字验证码" maxlength="6"
+                                       onkeydown="if(event.key==='Enter')doLogin()">
+                            </div>
+                            <button class="btn-send-code" id="btnSendLoginCode" onclick="sendCode('login')">发送验证码</button>
+                        </div>
+                    </div>
+
+                    <button class="btn-primary" id="btnLoginSubmit" onclick="doLogin()">登 录</button>
+                    <div class="modal-link">
+                        没有账号？<a onclick="switchTab('register')">立即注册</a>
+                    </div>
+                    <div class="modal-link" style="margin-top:12px;">
+                        忘记密码？<a onclick="switchTab('reset')">重置密码</a>
+                    </div>
+                </div>
+
+                <!-- Register Form -->
+                <div id="formRegister" style="display:none">
+                    <div class="modal-error" id="regError"></div>
+
+                    <div class="verify-row">
+                        <div class="form-group">
+                            <label>邮箱</label>
+                            <input type="email" id="regEmail" placeholder="用于接收验证码" autocomplete="email">
+                        </div>
+                        <button class="btn-send-code" id="btnSendRegCode" onclick="sendCode('register')">发送验证码</button>
+                    </div>
+
+                    <div class="form-group" style="margin-top:14px;">
+                        <label>验证码</label>
+                        <input type="text" id="regCode" placeholder="请输入6位验证码" maxlength="6"
+                               onkeydown="if(event.key==='Enter')doRegister()">
+                    </div>
+
+                    <div class="form-group">
+                        <label>昵称</label>
+                        <input type="text" id="regNickname" placeholder="2-20个字符" autocomplete="nickname">
+                    </div>
+
+                    <div class="form-group">
+                        <label>密码</label>
+                        <input type="password" id="regPassword" placeholder="至少6位" autocomplete="new-password">
+                    </div>
+
+                    <div class="form-group">
+                        <label>确认密码</label>
+                        <input type="password" id="regPassword2" placeholder="再次输入密码" autocomplete="new-password"
+                               onkeydown="if(event.key==='Enter')doRegister()">
+                    </div>
+
+                    <button class="btn-primary" id="btnRegSubmit" onclick="doRegister()">注 册</button>
+                    <div class="modal-link">
+                        已有账号？<a onclick="switchTab('login')">立即登录</a>
+                    </div>
+                </div>
+
+                <!-- Reset Password Form -->
+                <div id="formReset" style="display:none">
+                    <div class="modal-error" id="resetError"></div>
+
+                    <div class="verify-row">
+                        <div class="form-group">
+                            <label>邮箱</label>
+                            <input type="email" id="resetEmail" placeholder="用于接收验证码" autocomplete="email">
+                        </div>
+                        <button class="btn-send-code" id="btnSendResetCode" onclick="sendCode('reset')">发送验证码</button>
+                    </div>
+
+                    <div class="form-group" style="margin-top:14px;">
+                        <label>验证码</label>
+                        <input type="text" id="resetCode" placeholder="请输入6位验证码" maxlength="6"
+                               onkeydown="if(event.key==='Enter')doResetPassword()">
+                    </div>
+
+                    <div class="form-group">
+                        <label>新密码</label>
+                        <input type="password" id="resetPassword" placeholder="至少6位" autocomplete="new-password">
+                    </div>
+
+                    <div class="form-group">
+                        <label>确认新密码</label>
+                        <input type="password" id="resetPassword2" placeholder="再次输入密码" autocomplete="new-password"
+                               onkeydown="if(event.key==='Enter')doResetPassword()">
+                    </div>
+
+                    <button class="btn-primary" id="btnResetSubmit" onclick="doResetPassword()">重 置</button>
+                    <div class="modal-link">
+                        返回登录？<a onclick="switchTab('login')">立即登录</a>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <!-- App Layout -->
+    <div class="app-container">
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <div class="logo-wrapper">
+                    <img src="{{ url_for('static', filename='logo.png') }}" alt="LoraTool" class="logo-img">
+                    <div class="logo-text">
+                        <h1 class="logo">LoraTool</h1>
+                        <p class="logo-sub">图像标注工具集</p>
+                    </div>
+                </div>
+            </div>
+            <nav class="sidebar-nav">
+                <!-- 免费功能：所有登录用户可访问 -->
+                <a href="/face_split/" class="nav-item{% if active_page == 'face_split' %} active{% endif %}" data-page="face_split" data-free="true">
+                    <span class="nav-icon">👤</span><span class="nav-text">人脸图像分割</span>
+                </a>
+                <a href="/rename/" class="nav-item{% if active_page == 'rename' %} active{% endif %}" data-page="rename" data-free="true">
+                    <span class="nav-icon">📝</span><span class="nav-text">图片批量重命名</span>
+                </a>
+                <!-- VIP专属功能 -->
+                <a href="/resize/" class="nav-item{% if active_page == 'resize' %} active{% endif %}" data-page="resize" data-vip="true">
+                    <span class="nav-icon">📐</span><span class="nav-text">图片批量尺寸重设</span><span class="vip-badge">VIP</span>
+                </a>
+                <a href="/string_ops/" class="nav-item{% if active_page == 'string_ops' %} active{% endif %}" data-page="string_ops" data-vip="true">
+                    <span class="nav-icon">🔤</span><span class="nav-text">字符串操作</span><span class="vip-badge">VIP</span>
+                </a>
+                <a href="/label_edit/" class="nav-item{% if active_page == 'label_edit' %} active{% endif %}" data-page="label_edit" data-vip="true">
+                    <span class="nav-icon">🏷️</span><span class="nav-text">标注修改</span><span class="vip-badge">VIP</span>
+                </a>
+                <a href="/qwen_label/" class="nav-item{% if active_page == 'qwen_label' %} active{% endif %}" data-page="qwen_label" data-vip="true">
+                    <span class="nav-icon">🤖</span><span class="nav-text">Ollama本地标注</span><span class="vip-badge">VIP</span>
+                </a>
+                <!-- 其他工具（VIP专属） -->
+                <a href="/tools/" class="nav-item{% if active_page == 'tools' %} active{% endif %}" data-page="tools" data-vip="true">
+                    <span class="nav-icon">🔗</span><span class="nav-text">其他工具</span><span class="vip-badge">VIP</span>
+                </a>
+                <!-- 个人中心：所有登录用户可访问 -->
+                <a href="/profile/" class="nav-item{% if active_page == 'profile' %} active{% endif %}" data-page="profile">
+                    <span class="nav-icon">👤</span><span class="nav-text">个人中心</span>
+                </a>
+                <a href="/admin/" class="nav-item{% if active_page == 'admin' %} active{% endif %}" data-page="admin" id="nav-admin" style="display: none;">
+                    <span class="nav-icon">🛡️</span><span class="nav-text">管理中心</span>
+                </a>
+                <a href="/vip/" class="nav-item{% if active_page == 'vip' %} active{% endif %}" data-page="vip">
+                    <span class="nav-icon">💎</span><span class="nav-text">会员中心</span>
+                </a>
+                <a href="/about/" class="nav-item{% if active_page == 'about' %} active{% endif %}" data-page="about">
+                    <span class="nav-icon">ℹ️</span><span class="nav-text">关于</span>
+                </a>
+            </nav>
+            <div class="sidebar-footer">
+                <!-- Theme Toggle -->
+                <div class="theme-toggle" id="themeToggle" title="切换主题">
+                    <span class="theme-toggle-icon" id="themeIcon">🌙</span>
+                    <span class="theme-toggle-label" id="themeLabel">夜间</span>
+                </div>
+            </div>
+        </aside>
+
+        <main class="main-content">
+            {% block content %}{% endblock %}
+        </main>
+    </div>
+
+
+    <!-- Toast -->
+    <div id="toast-container" class="toast-container"></div>
+
+    <script>
+        // ── Theme ──────────────────────────────────────────
+        var STORAGE_KEY = 'loratool_theme';
+        var themes = {
+            day: {
+                '--bg-primary':'#ffffff','--bg-secondary':'#f5f7fa','--bg-tertiary':'#eef1f5',
+                '--bg-hover':'#e8ecf0','--bg-active':'#dce1e7','--text-primary':'#1a1a1a',
+                '--text-secondary':'#4a5568','--text-muted':'#8896a8','--accent':'#e91e8c',
+                '--accent-hover':'#d6107c','--accent-glow':'rgba(233,30,140,0.10)',
+                '--success':'#10b981','--warning':'#f59e0b','--error':'#ef4444','--error-glow':'rgba(239,68,68,0.10)','--border':'#e2e8f0','--card-bg':'#ffffff','--success-bg':'rgba(16,185,129,0.10)','--info-bg':'rgba(59,130,246,0.10)','--shadow-sm':'0 2px 8px rgba(0,0,0,0.06)','--shadow-md':'0 4px 16px rgba(0,0,0,0.10)',
+            },
+            night: {
+                '--bg-primary':'#0f1117','--bg-secondary':'#1a1d27','--bg-tertiary':'#242836',
+                '--bg-hover':'#2d3248','--bg-active':'#3a4060','--text-primary':'#e8eaf0',
+                '--text-secondary':'#9ba3b8','--text-muted':'#5c6478','--accent':'#6c8cff',
+                '--accent-hover':'#859dff','--accent-glow':'rgba(108,140,255,0.15)',
+                '--success':'#4ade80','--warning':'#fbbf24','--error':'#f87171','--error-glow':'rgba(248,113,113,0.2)','--border':'#2a2e3d','--card-bg':'#1e2230','--success-bg':'rgba(74,222,128,0.15)','--info-bg':'rgba(96,165,250,0.15)','--shadow-sm':'0 2px 8px rgba(0,0,0,0.25)','--shadow-md':'0 4px 16px rgba(0,0,0,0.4)',
+            }
+        };
+
+        function applyTheme(theme) {
+            var root = document.documentElement;
+            var vars = themes[theme];
+            var dynamic = document.getElementById('theme-dynamic');
+            var css = ':root {\n';
+            for (var k in vars) css += '    ' + k + ': ' + vars[k] + ';\n';
+            css += '}';
+            dynamic.textContent = css;
+            document.body.setAttribute('data-theme', theme);
+            // 夜间 modal 遮罩需要更深的半透明
+            document.querySelectorAll('.modal-overlay').forEach(function(el){
+                el.style.background = theme === 'day' ? 'rgba(0,0,0,0.55)' : 'rgba(0,0,0,0.75)';
+            });
+            var icon = document.getElementById('themeIcon');
+            var label = document.getElementById('themeLabel');
+            if (icon) {
+                // 添加切换动画
+                icon.classList.add('changing');
+                setTimeout(function() {
+                    icon.textContent = theme === 'day' ? '\u2600' : '\u263E';
+                    icon.classList.remove('changing');
+                }, 200); // 动画中途切换图标
+            }
+            if (label) label.textContent = theme === 'day' ? '日间' : '夜间';
+            localStorage.setItem(STORAGE_KEY, theme);
+        }
+
+        function toggleTheme() {
+            var current = document.body.getAttribute('data-theme') || 'night';
+            applyTheme(current === 'day' ? 'night' : 'day');
+        }
+
+        // ── Toast ──────────────────────────────────────────
+        function showToast(message, type, duration) {
+            type = type || 'info';
+            duration = duration || 3000;
+            var container = document.getElementById('toast-container');
+            var toast = document.createElement('div');
+            toast.className = 'toast toast-' + type;
+            toast.textContent = message;
+            container.appendChild(toast);
+            requestAnimationFrame(function() { toast.classList.add('show'); });
+            setTimeout(function() {
+                toast.classList.remove('show');
+                setTimeout(function() { toast.remove(); }, 300);
+            }, duration);
+        }
+
+        // ── Auth ────────────────────────────────────────────
+        var _currentTab = 'login';
+        var _loginMode  = 'pwd';   // 'pwd' | 'code'
+
+        function openAuthModal(tab) {
+            _currentTab = tab || 'login';
+            switchTab(_currentTab, true);
+            document.getElementById('authModal').classList.add('show');
+        }
+
+        function closeAuthModal() {
+            document.getElementById('authModal').classList.remove('show');
+        }
+
+        function switchTab(tab, skipOpen) {
+            _currentTab = tab;
+            var isLogin = tab === 'login';
+            var isReset = tab === 'reset';
+            document.getElementById('tabLogin').classList.toggle('active', isLogin);
+            document.getElementById('tabRegister').classList.toggle('active', !isLogin && !isReset);
+            document.getElementById('tabReset').classList.toggle('active', isReset);
+            document.getElementById('formLogin').style.display    = isLogin ? 'block' : 'none';
+            document.getElementById('formRegister').style.display = !isLogin && !isReset ? 'block' : 'none';
+            document.getElementById('formReset').style.display    = isReset ? 'block' : 'none';
+            clearErrors();
+            if (!skipOpen) document.getElementById('authModal').classList.add('show');
+        }
+
+        function clearErrors() {
+            document.getElementById('loginError').classList.remove('show');
+            document.getElementById('regError').classList.remove('show');
+        }
+
+        function showError(el, msg) {
+            el.textContent = msg;
+            el.classList.add('show');
+        }
+
+        function setLoading(btn, on, orig) {
+            if (!btn) return;
+            btn.disabled = on;
+            btn.textContent = on ? '处理中...' : (orig || btn.dataset.orig || btn.textContent);
+        }
+
+        // ── Login mode toggle ──────────────────────────────
+        function setLoginMode(mode) {
+            _loginMode = mode;
+            var isPwd = mode === 'pwd';
+            document.getElementById('modePwd').classList.toggle('active', isPwd);
+            document.getElementById('modeCode').classList.toggle('active', !isPwd);
+            document.getElementById('pwdLoginArea').style.display  = isPwd ? '' : 'none';
+            document.getElementById('codeLoginArea').style.display = isPwd ? 'none' : '';
+            clearErrors();
+            // Adjust submit button text
+            var btn = document.getElementById('btnLoginSubmit');
+            btn.textContent = isPwd ? '登 录' : '验证码登录';
+        }
+
+        // ── Send code ──────────────────────────────────────
+        function sendCode(type) {
+            var email, btn, errorEl;
+            if (type === 'login') {
+                email   = document.getElementById('loginUsername').value.trim();
+                btn     = document.getElementById('btnSendLoginCode');
+                errorEl = document.getElementById('loginError');
+            } else if (type === 'reset') {
+                email   = document.getElementById('resetEmail').value.trim();
+                btn     = document.getElementById('btnSendResetCode');
+                errorEl = document.getElementById('resetError');
+            } else {
+                email   = document.getElementById('regEmail').value.trim();
+                btn     = document.getElementById('btnSendRegCode');
+                errorEl = document.getElementById('regError');
+            }
+
+            clearErrors();
+            if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+                showError(errorEl, '请填写正确的邮箱地址');
+                return;
+            }
+
+            btn.disabled = true;
+            var orig = btn.textContent;
+            btn.textContent = '发送中...';
+
+            fetch('/auth/send_code', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email: email, mode: type })
+            })
+            .then(function(r){ return r.json(); })
+            .then(function(d){
+                if (d.code === 200) {
+                    showToast(d.msg, 'success');
+                    countdown(btn, 60);
+                } else {
+                    showError(errorEl, d.msg || '发送失败');
+                    btn.disabled = false;
+                    btn.textContent = orig;
+                }
+            })
+            .catch(function(e){
+                showError(errorEl, '网络错误：' + e.message);
+                btn.disabled = false;
+                btn.textContent = orig;
+            });
+        }
+
+        function countdown(btn, seconds) {
+            if (seconds <= 0) {
+                btn.disabled = false;
+                btn.textContent = '重新发送';
+                return;
+            }
+            btn.textContent = seconds + '秒后可重发';
+            setTimeout(function() { countdown(btn, seconds - 1); }, 1000);
+        }
+
+        // ── Login ──────────────────────────────────────────
+        async function doLogin() {
+            var login_key = document.getElementById('loginUsername').value.trim();
+            var password  = document.getElementById('loginPassword').value;
+            var code      = document.getElementById('loginCode').value.trim();
+            var btn       = document.getElementById('btnLoginSubmit');
+            clearErrors();
+
+            if (!login_key) { showError(document.getElementById('loginError'), '请填写用户名或邮箱'); return; }
+
+            var payload = { login_key: login_key };
+            if (_loginMode === 'pwd') {
+                if (!password) { showError(document.getElementById('loginError'), '请填写密码'); return; }
+                payload.password = password;
+            } else {
+                if (!code) { showError(document.getElementById('loginError'), '请填写验证码'); return; }
+                payload.verify_code = code;
+            }
+
+            setLoading(btn, true);
+            try {
+                var res = await fetch('/auth/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                var data = await res.json();
+                if (data.code === 200) {
+                    closeAuthModal();
+                    updateAuthBar(data.username || login_key);
+                    showToast('登录成功！', 'success');
+                    // Login succeeded — redirect to next page or home
+                    var next = new URLSearchParams(window.location.search).get('next');
+                    if (!next) {
+                        try { next = new URL(document.referrer).pathname; } catch(e) {}
+                    }
+                    // Avoid redirecting back to auth pages
+                    if (!next || next.indexOf('/auth') === 0 || next === '/') {
+                        next = '/about/';
+                    }
+                    window.location.href = next;
+                } else {
+                    showError(document.getElementById('loginError'), data.msg || '登录失败');
+                }
+            } catch(e) {
+                showError(document.getElementById('loginError'), '网络错误：' + e.message);
+            } finally {
+                setLoading(btn, false);
+            }
+        }
+
+        // ── Register ───────────────────────────────────────
+        async function doRegister() {
+            var email     = document.getElementById('regEmail').value.trim();
+            var nickname  = document.getElementById('regNickname').value.trim();
+            var code      = document.getElementById('regCode').value.trim();
+            var password  = document.getElementById('regPassword').value;
+            var password2 = document.getElementById('regPassword2').value;
+            var btn       = document.getElementById('btnRegSubmit');
+            clearErrors();
+
+            if (!email || !nickname || !password || !password2 || !code) {
+                showError(document.getElementById('regError'), '请填写完整信息（含验证码）'); return;
+            }
+            if (password !== password2) { showError(document.getElementById('regError'), '两次密码不一致'); return; }
+            if (password.length < 6) { showError(document.getElementById('regError'), '密码至少6位'); return; }
+
+            setLoading(btn, true);
+            try {
+                var res = await fetch('/auth/register', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email: email, nickname: nickname,
+                                           password: password, verify_code: code })
+                });
+                var data = await res.json();
+                if (data.code === 200) {
+                    closeAuthModal();
+                    updateAuthBar(data.username || email);
+                    var next = new URLSearchParams(window.location.search).get('next');
+                    if (!next || next.indexOf('/auth') === 0 || next === '/') next = '/about/';
+                    window.location.href = next;
+                } else {
+                    showError(document.getElementById('regError'), data.msg || '注册失败');
+                }
+            } catch(e) {
+                showError(document.getElementById('regError'), '网络错误：' + e.message);
+            } finally {
+                setLoading(btn, false);
+            }
+        }
+
+        // ── Reset Password ─────────────────────────────────
+        async function doResetPassword() {
+            var email     = document.getElementById('resetEmail').value.trim();
+            var code      = document.getElementById('resetCode').value.trim();
+            var password  = document.getElementById('resetPassword').value;
+            var password2 = document.getElementById('resetPassword2').value;
+            var btn       = document.getElementById('btnResetSubmit');
+            clearErrors();
+
+            if (!email || !password || !password2 || !code) {
+                showError(document.getElementById('resetError'), '请填写完整信息（含验证码）'); return;
+            }
+            if (password !== password2) { showError(document.getElementById('resetError'), '两次密码不一致'); return; }
+            if (password.length < 6) { showError(document.getElementById('resetError'), '密码至少6位'); return; }
+
+            setLoading(btn, true);
+            try {
+                var res = await fetch('/auth/reset_password', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email: email, password: password, verify_code: code })
+                });
+                var data = await res.json();
+                if (data.code === 200) {
+                    showToast('密码重置成功，请登录！', 'success');
+                    switchTab('login', true);
+                    document.getElementById('loginUsername').value = email;
+                    document.getElementById('loginPassword').value = '';
+                    document.getElementById('resetEmail').value = '';
+                    document.getElementById('resetCode').value = '';
+                    document.getElementById('resetPassword').value = '';
+                    document.getElementById('resetPassword2').value = '';
+                } else {
+                    showError(document.getElementById('resetError'), data.msg || '重置失败');
+                }
+            } catch(e) {
+                showError(document.getElementById('resetError'), '网络错误：' + e.message);
+            } finally {
+                setLoading(btn, false);
+            }
+        }
+
+        // ── Logout ─────────────────────────────────────────
+        async function doLogout() {
+            try { await fetch('/auth/logout', {method:'POST'}); } catch(e) {}
+            updateAuthBar(null);
+            showToast('已退出登录', 'info');
+            window.location.href = '/about/';
+        }
+
+        // ── Update auth bar ────────────────────────────────
+        function updateAuthBar(username) {
+            var bar   = document.getElementById('authBar');
+            var nameEl = document.getElementById('usernameDisplay');
+            if (username) {
+                nameEl.textContent = username;
+                bar.classList.add('logged-in');
+                checkVipStatus();
+            } else {
+                bar.classList.remove('logged-in');
+                updateVipNavItems(false);
+            }
+        }
+
+        // ── Init ───────────────────────────────────────────
+        document.addEventListener('DOMContentLoaded', function() {
+            // Theme
+            var saved = localStorage.getItem(STORAGE_KEY) || 'night';
+            applyTheme(saved);
+            var tt = document.getElementById('themeToggle');
+            if (tt) tt.addEventListener('click', toggleTheme);
+
+            // Auth check
+            fetch('/auth/check')
+                .then(function(r){ return r.json(); })
+                .then(function(d){
+                    var bar = document.getElementById('authBar');
+                    if (d.logged_in) {
+                        bar.classList.add('logged-in');
+                        document.getElementById('usernameDisplay').textContent = d.username;
+                        // 检查是否是管理员
+                        if (d.is_admin) {
+                            var navAdmin = document.getElementById('nav-admin');
+                            if (navAdmin) navAdmin.style.display = '';
+                        }
+                        // 检查VIP状态
+                        checkVipStatus();
+                    } else {
+                        bar.classList.remove('logged-in');
+                        // 未登录时隐藏VIP功能
+                        updateVipNavItems(false);
+                    }
+                })
+                .catch(function(){});
+        });
+
+        // ── Check VIP Status ───────────────────────────────
+        function checkVipStatus() {
+            fetch('/vip/status')
+                .then(function(r){ return r.json(); })
+                .then(function(d){
+                    var isVip = d.code === 200 && d.data && d.data.active;
+                    updateVipNavItems(isVip);
+                })
+                .catch(function(){
+                    updateVipNavItems(false);
+                });
+        }
+
+        // ── Update VIP Nav Items ───────────────────────────
+        function updateVipNavItems(isVip) {
+            var vipItems = document.querySelectorAll('.nav-item[data-vip="true"]');
+            vipItems.forEach(function(item) {
+                if (isVip) {
+                    item.classList.remove('vip-locked');
+                } else {
+                    item.classList.add('vip-locked');
+                }
+            });
+        }
+    </script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>

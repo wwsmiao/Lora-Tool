@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container-fluid px-3 py-4" style="max-width:680px;">
+
+    <div class="mb-4">
+        <h1 class="fw-extrabold fs-3">图片批量重命名</h1>
+        <p class="text-muted small">按选定方式批量重命名指定目录下的所有图片</p>
+    </div>
+
+    <div class="card card-glow border mb-3">
+        <div class="card-body p-3">
+            <div class="mb-3"><label class="form-label fw-semibold small text-uppercase text-muted">图片路径</label>
+                <input class="form-control" id="imagePath" placeholder="D:\photos\dataset">
+            </div>
+            <div class="mb-3"><label class="form-label fw-semibold small text-uppercase text-muted">命名方式</label>
+                <select class="form-select" id="mode" onchange="updateFields()">
+                    <option value="1">数字 1-n</option>
+                    <option value="2">日期-数字 1-n</option>
+                    <option value="3">自定义前缀-数字 1-n</option>
+                    <option value="4">数字 1-n-自定义后缀</option>
+                    <option value="5">自定义前缀-数字 1-n-自定义后缀</option>
+                </select>
+            </div>
+            <div class="row g-2">
+                <div class="col-6 d-none" id="prefixGroup"><label class="form-label fw-semibold small text-uppercase text-muted">自定义前缀</label><input class="form-control" id="prefix" placeholder="img_"></div>
+                <div class="col-6 d-none" id="suffixGroup"><label class="form-label fw-semibold small text-uppercase text-muted">自定义后缀</label><input class="form-control" id="suffix" placeholder="_final"></div>
+            </div>
+            <button class="btn btn-gradient w-100 mt-3" id="startBtn" onclick="startRename()">开始重命名</button>
+        </div>
+    </div>
+
+    <div class="progress d-none" id="progressBar" style="height:5px;"><div class="progress-bar bg-gradient w-0" id="progressFill" style="background:linear-gradient(90deg,var(--accent),var(--accent2,#7b2fff));width:0;"></div></div>
+    <div class="mt-2 small" id="resultArea"></div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function updateFields() {
+    var m = document.getElementById('mode').value;
+    document.getElementById('prefixGroup').classList.toggle('d-none', m!=='3'&&m!=='5');
+    document.getElementById('suffixGroup').classList.toggle('d-none', m!=='4'&&m!=='5');
+}
+function startRename() {
+    var p = document.getElementById('imagePath').value.trim(), m = document.getElementById('mode').value;
+    var pr = document.getElementById('prefix').value.trim(), su = document.getElementById('suffix').value.trim();
+    if (!p) { showToast('请填写图片路径', 'warning'); return; }
+    var b = document.getElementById('startBtn'); b.disabled = true; b.textContent = '处理中...';
+    document.getElementById('progressBar').classList.remove('d-none');
+    document.getElementById('progressFill').style.width = '50%';
+    fetch('/rename/process', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({image_path:p, mode:m, prefix:pr, suffix:su}) })
+        .then(r=>r.json()).then(d=>{
+            document.getElementById('progressFill').style.width = '100%';
+            document.getElementById('resultArea').textContent = d.message;
+            showToast(d.message, d.success?'success':'error');
+        }).catch(e=>{ document.getElementById('resultArea').textContent = '请求失败: '+e.message; showToast('请求失败','error'); })
+        .finally(()=>{ b.disabled=false; b.textContent='开始重命名'; setTimeout(()=>{ document.getElementById('progressBar').classList.add('d-none'); document.getElementById('progressFill').style.width='0%'; }, 800); });
+}
+</script>
+{% endblock %}

@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LoraTool - {% block title %}{% endblock %}</title>
+    <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v=20260612">
+    <!-- Bootstrap 5 -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Fancybox 3 -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fancyapps/fancybox@3.5.7/dist/jquery.fancybox.min.css" />
+    <script src="https://cdn.jsdelivr.net/npm/jquery@3.7.1/dist/jquery.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@fancyapps/fancybox@3.5.7/dist/jquery.fancybox.min.js"></script>
+    <style id="theme-dynamic"></style>
+    <style>
+        /* Theme Toggle - kept from original style.css */
+        .sidebar-footer {
+            padding: 12px 16px;
+            border-top: 1px solid var(--border);
+        }
+        .theme-toggle {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 24px;
+            padding: 8px 16px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+        }
+        .theme-toggle:hover {
+            background: var(--bg-hover);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+        }
+        .theme-toggle:active { transform: translateY(0); }
+        .theme-toggle-label {
+            font-size: 13px; font-weight: 600;
+            color: var(--text-primary); letter-spacing: 0.3px;
+        }
+        /* Hide auth/VIP remnants */
+        .auth-bar, .auth-modal, .vip-badge, .vip-locked { display: none !important; }
+
+        /* ── Bootstrap → Theme variable mapping ── */
+        :root, [data-theme] {
+            --bs-body-bg: var(--bg-primary); --bs-body-color: var(--text-primary);
+            --bs-secondary-color: var(--text-secondary); --bs-tertiary-color: var(--text-muted);
+            --bs-border-color: var(--border);
+            --bs-primary: var(--accent); --bs-primary-rgb: var(--accent-rgb);
+            --bs-heading-color: var(--text-primary); --bs-emphasis-color: var(--text-primary);
+            --bs-card-bg: var(--bg-secondary); --bs-card-border-color: var(--border); --bs-card-color: var(--text-primary);
+            --bs-form-control-bg: var(--bg-primary); --bs-input-bg: var(--bg-primary);
+            --bs-dropdown-bg: var(--bg-secondary); --bs-dropdown-border-color: var(--border);
+            --bs-dropdown-link-color: var(--text-primary); --bs-dropdown-link-hover-bg: var(--bg-hover);
+            --bs-progress-bg: var(--bg-tertiary);
+            --bs-modal-bg: var(--bg-secondary); --bs-modal-border-color: var(--border);
+            --bs-code-color: var(--accent);
+        }
+        .form-control, .form-select { background-color: var(--bg-primary) !important; color: var(--text-primary) !important; border-color: var(--border) !important; }
+        .form-control:focus, .form-select:focus { border-color: var(--accent) !important; box-shadow: 0 0 0 0.2rem rgba(var(--accent-rgb),0.2) !important; }
+        .form-control::placeholder { color: var(--text-muted) !important; opacity: 0.5; }
+        .form-check-input { background-color: var(--bg-primary); border-color: var(--border); }
+        .form-check-input:checked { background-color: var(--accent); border-color: var(--accent); }
+        .form-label, .form-text { color: var(--text-primary) !important; opacity: 0.6; }
+        .text-muted { color: var(--text-muted) !important; }
+        .card { --bs-card-bg: var(--bg-secondary); }
+        .list-group { --bs-list-group-bg: var(--bg-secondary); --bs-list-group-border-color: var(--border); --bs-list-group-color: var(--text-primary); }
+        .list-group-item { background: var(--bg-secondary); color: var(--text-primary); border-color: var(--border); }
+        .list-group-item:hover { background: var(--bg-hover); }
+        .dropdown-menu { --bs-dropdown-bg: var(--bg-secondary); --bs-dropdown-border-color: var(--border); }
+        .dropdown-item { color: var(--text-primary); }
+        .dropdown-item:hover { background: var(--bg-hover); color: var(--text-primary); }
+        .modal-content { background: var(--bg-secondary); border-color: var(--border); color: var(--text-primary); }
+        .progress { background-color: var(--bg-tertiary) !important; }
+        .alert-warning { background: rgba(var(--bs-warning-rgb,245,158,11),.06) !important; border-color: rgba(var(--bs-warning-rgb,245,158,11),.3) !important; color: var(--text-primary); }
+        code { color: var(--accent); background: rgba(var(--accent-rgb),.08); padding: 2px 6px; border-radius: 4px; font-size: .85em; }
+        .table { --bs-table-color: var(--text-primary); --bs-table-bg: transparent; --bs-table-border-color: var(--border); }
+
+        /* Global utilities */
+        .btn-gradient { background: linear-gradient(135deg, var(--accent), var(--accent2, #7b2fff)); border: none; color: #fff; font-weight: 600; }
+        .btn-gradient:hover { box-shadow: 0 0 20px rgba(var(--accent-rgb), .35); color: #fff; }
+        .card-glow { transition: border-color .25s, box-shadow .25s; }
+        .card-glow:hover { border-color: rgba(var(--accent-rgb), .25); box-shadow: 0 0 24px rgba(var(--accent-rgb), .06); }
+        .progress-glow .progress-bar { background: linear-gradient(90deg, var(--accent), var(--accent2, #7b2fff)) !important; }
+    </style>
+    {% block head %}{% endblock %}
+</head>
+<body data-theme="night">
+    <div class="app-container">
+        <!-- Sidebar -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <h2 class="sidebar-title">LoraTool</h2>
+            </div>
+            <nav class="sidebar-nav">
+                <!-- 所有功能现在完全开放 -->
+                <a href="/face_split/" class="nav-item{% if active_page == 'face_split' %} active{% endif %}" data-page="face_split">
+                    <span class="nav-text">人脸图像分割</span>
+                </a>
+                <a href="/rename/" class="nav-item{% if active_page == 'rename' %} active{% endif %}" data-page="rename">
+                    <span class="nav-text">图片批量重命名</span>
+                </a>
+                <a href="/resize/" class="nav-item{% if active_page == 'resize' %} active{% endif %}" data-page="resize">
+                    <span class="nav-text">图片批量尺寸重设</span>
+                </a>
+                <a href="/string_ops/" class="nav-item{% if active_page == 'string_ops' %} active{% endif %}" data-page="string_ops">
+                    <span class="nav-text">字符串操作</span>
+                </a>
+                <a href="/label_edit/" class="nav-item{% if active_page == 'label_edit' %} active{% endif %}" data-page="label_edit">
+                    <span class="nav-text">标注修改</span>
+                </a>
+                <a href="/qwen_label/" class="nav-item{% if active_page == 'qwen_label' %} active{% endif %}" data-page="qwen_label">
+                    <span class="nav-text">Ollama本地标注</span>
+                </a>
+                <a href="/qwen_vl_label/" class="nav-item{% if active_page == 'qwen_vl_label' %} active{% endif %}" data-page="qwen_vl_label">
+                    <span class="nav-text">Qwen本地标注</span>
+                </a>
+                <a href="/tools/" class="nav-item{% if active_page == 'tools' %} active{% endif %}" data-page="tools">
+                    <span class="nav-text">其他工具</span>
+                </a>
+                <a href="/about/" class="nav-item{% if active_page == 'about' %} active{% endif %}" data-page="about">
+                    <span class="nav-text">关于</span>
+                </a>
+            </nav>
+            <div class="sidebar-footer">
+                <!-- Theme Toggle -->
+                <div class="theme-toggle" id="themeToggle" title="切换日间/夜间模式">
+                    <span class="theme-toggle-label" id="themeLabel">夜间</span>
+                </div>
+            </div>
+        </aside>
+
+        <main class="main-content">
+            {% block content %}{% endblock %}
+        </main>
+    </div>
+
+    <!-- Toast -->
+    <div id="toast-container" class="toast-container"></div>
+
+    <script>
+        // Theme configuration
+        var STORAGE_KEY = 'loratool_theme';
+        var themes = {
+            day: {
+                // 日间 — 清爽专业风
+                '--bg-primary': '#ffffff',
+                '--bg-secondary': '#f8fafc',
+                '--bg-tertiary': '#f1f5f9',
+                '--bg-hover': '#e2e8f0',
+                '--bg-active': '#cbd5e1',
+                '--text-primary': '#0f172a',
+                '--text-secondary': '#1e40af',
+                '--text-muted': '#3b82f6',
+                '--accent': '#3b82f6',
+                '--accent-hover': '#2563eb',
+                '--accent2': '#7c3aed',
+                '--accent-rgb': '59, 130, 246',
+                '--accent-glow': 'rgba(59, 130, 246, 0.2)',
+                '--success': '#10b981',
+                '--warning': '#f59e0b',
+                '--error': '#ef4444',
+                '--error-glow': 'rgba(239, 68, 68, 0.15)',
+                '--border': '#e2e8f0',
+                '--border-hover': '#cbd5e1',
+                '--shadow-sm': '0 1px 3px rgba(0,0,0,0.06)',
+                '--shadow-md': '0 4px 12px rgba(0,0,0,0.08)',
+                '--shadow-lg': '0 12px 32px rgba(0,0,0,0.12)',
+                '--card-bg': '#ffffff',
+                '--card-shadow': '0 1px 3px rgba(0,0,0,0.06), 0 0 0 1px rgba(0,0,0,0.04)',
+                '--btn-primary-bg': '#3b82f6',
+                '--btn-primary-hover': '#2563eb',
+                '--btn-primary-text': '#ffffff',
+                '--btn-secondary-bg': '#f1f5f9',
+                '--btn-secondary-hover': '#e2e8f0',
+                '--btn-secondary-text': '#0f172a',
+            },
+            night: {
+                // 夜间 — 沉浸深色科技风
+                '--bg-primary': '#0b1120',
+                '--bg-secondary': '#111827',
+                '--bg-tertiary': '#1e293b',
+                '--bg-hover': '#263348',
+                '--bg-active': '#334155',
+                '--text-primary': '#e2e8f0',
+                '--text-secondary': '#60a5fa',
+                '--text-muted': '#93c5fd',
+                '--accent': '#06b6d4',
+                '--accent-hover': '#0891b2',
+                '--accent2': '#8b5cf6',
+                '--accent-rgb': '6, 182, 212',
+                '--accent-glow': 'rgba(6, 182, 212, 0.3)',
+                '--success': '#10b981',
+                '--warning': '#f59e0b',
+                '--error': '#ef4444',
+                '--error-glow': 'rgba(239, 68, 68, 0.2)',
+                '--border': '#1e293b',
+                '--border-hover': '#334155',
+                '--shadow-sm': '0 1px 3px rgba(0,0,0,0.4)',
+                '--shadow-md': '0 4px 12px rgba(0,0,0,0.5)',
+                '--shadow-lg': '0 12px 32px rgba(0,0,0,0.6)',
+                '--card-bg': '#111827',
+                '--card-shadow': '0 1px 3px rgba(0,0,0,0.4), 0 0 0 1px rgba(6,182,212,0.08)',
+                '--btn-primary-bg': '#06b6d4',
+                '--btn-primary-hover': '#0891b2',
+                '--btn-primary-text': '#0b1120',
+                '--btn-secondary-bg': '#1e293b',
+                '--btn-secondary-hover': '#263348',
+                '--btn-secondary-text': '#e2e8f0',
+            }
+        };
+
+        function applyTheme(theme) {
+            var root = document.documentElement;
+            var vars = themes[theme];
+            var dynamic = document.getElementById('theme-dynamic');
+            var css = ':root {\n';
+            for (var k in vars) css += '    ' + k + ': ' + vars[k] + ';\n';
+            css += '}';
+            dynamic.textContent = css;
+            document.body.setAttribute('data-theme', theme);
+            var label = document.getElementById('themeLabel');
+            if (label) label.textContent = theme === 'day' ? '日间' : '夜间';
+            localStorage.setItem(STORAGE_KEY, theme);
+        }
+
+        function toggleTheme() {
+            var current = document.body.getAttribute('data-theme') || 'night';
+            applyTheme(current === 'day' ? 'night' : 'day');
+        }
+
+        // Toast notification
+        function showToast(message, type, duration) {
+            type = type || 'info';
+            duration = duration || 3000;
+            var container = document.getElementById('toast-container');
+            if (!container) {
+                container = document.createElement('div');
+                container.id = 'toast-container';
+                container.className = 'toast-container';
+                document.body.appendChild(container);
+            }
+            var toast = document.createElement('div');
+            toast.className = 'toast toast-' + type;
+            toast.textContent = message;
+            container.appendChild(toast);
+            setTimeout(function() {
+                toast.classList.add('toast-fade-out');
+                setTimeout(function() {
+                    if (toast.parentNode) toast.parentNode.removeChild(toast);
+                }, 300);
+            }, duration);
+        }
+
+        // Initialize theme
+        (function() {
+            var saved = localStorage.getItem(STORAGE_KEY);
+            if (saved && (saved === 'day' || saved === 'night')) {
+                applyTheme(saved);
+            } else {
+                applyTheme('night'); // Default to night mode
+            }
+        })();
+
+        // Bind theme toggle
+        document.addEventListener('DOMContentLoaded', function() {
+            var toggle = document.getElementById('themeToggle');
+            if (toggle) {
+                toggle.addEventListener('click', toggleTheme);
+            }
+        });
+    </script>
+
+    {% block scripts %}{% endblock %}
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
