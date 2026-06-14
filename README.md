@@ -8,7 +8,7 @@ AI 图像标注工具集 —— 多模型本地推理 + 批量处理 + 流式输
 |---|---|
 | **Qwen 本地标注** | Qwen3-VL-8B / Qwen3.5-9B 本地推理，4 种算法精度，流式 SSE 输出 |
 | **Ollama 本地标注** | 对接 Ollama API，支持任意 VL 模型批量打标 |
-| **阿里云 API 标注** | DashScope Qwen3.5 云端标注 |
+| **阿里云 API 标注** | DashScope Qwen3.5 云端标注（代码已就绪，需注册路由启用） |
 | **人脸图像分割** | MTCNN 检测人脸并裁剪，支持置信度调节 |
 | **图片批量重命名** | 5 种命名模式（数字/日期/前缀/后缀组合） |
 | **图片批量尺寸重设** | fit / fill / exact 三种缩放模式 |
@@ -75,6 +75,9 @@ venv/bin/python app.py      # Linux
 |---|---|---|
 | `LORATOOL_WORK_DIR` | 工作目录 | 项目根目录 |
 | `LORATOOL_SECRET_KEY` | Flask 密钥 | 随机生成 |
+
+> **百度翻译**：如需标注修改页面的翻译功能，复制 `baidu_translate_config.example.json` 为 `baidu_translate_config.json` 并填入真实 API Key。
+> **阿里云 API 标注**：代码位于 `routes/aliyun_label.py`，需在 `main.py` 中注册蓝图后启用。
 
 ## 技术栈
 
