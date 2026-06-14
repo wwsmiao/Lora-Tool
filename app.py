@@ -15,8 +15,6 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from flask import Flask, session, request, jsonify, redirect, url_for, make_response, render_template
 from main import register_routes
-from config_loader import load_db_config
-import pymysql
 
 app = Flask(__name__, template_folder='templates', static_folder='static')
 
