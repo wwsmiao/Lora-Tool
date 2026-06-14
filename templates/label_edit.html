@@ -124,7 +124,7 @@ function renderGrid(items) {
     items.forEach(function(item, idx) {
         var col = document.createElement('div'); col.className = 'col-xl-3 col-lg-4 col-md-6 col-12';
         col.innerHTML = '<div class="card label-card border h-100"><div class="position-relative" style="height:180px;overflow:hidden;">' +
-            '<a data-fancybox="gallery" href="' + item.image_url + '"><img src="' + item.image_url + '" class="w-100 h-100" loading="lazy"></a>' +
+            '<a data-fancybox="gallery" href="' + item.img_data + '"><img src="' + item.img_data + '" class="w-100 h-100" loading="lazy"></a>' +
             '<span class="badge bg-dark position-absolute top-0 end-0 m-1 small">' + (idx+1+(currentPage-1)*pageSize) + '</span></div>' +
             '<div class="card-body p-2"><textarea class="form-control label-card-textarea" rows="4" data-filename="' + item.txt_name + '" onblur="saveLabel(this)">' + escHtml(item.txt_content||'') + '</textarea>' +
             '<div class="d-flex justify-content-between mt-1"><small class="text-muted text-truncate" title="' + item.filename + '">' + item.filename + '</small>' +
