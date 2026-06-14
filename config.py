@@ -31,16 +31,3 @@ _baidu_cfg = _load_baidu_config()
 
 BAIDU_APPID = os.environ.get('BAIDU_APPID') or _baidu_cfg.get('appid', '')
 BAIDU_APPKEY = os.environ.get('BAIDU_APPKEY') or _baidu_cfg.get('appkey', '')
-
-# ── About Page ──────────────────────────────────────────────
-SOFTWARE_VERSION = 'v1.0.0'
-SOFTWARE_DATE    = '2026.6.14'
-AUTHOR_NAME      = '薇薇的猫/qclaw'
-AUTHOR_PLATFORM  = '薇薇的猫'
-AUTHOR_BILIBILI   = 'https://space.bilibili.com/472768517'
-SOFTWARE_DESC    = (
-    'LoraTool 是一款面向 AI 图像训练与标注的本地工具集，'
-    '支持 Qwen3-VL / Qwen3.5 多模型本地推理标注、Ollama API 标注，'
-    '集成人脸检测分割、图片批量重命名/尺寸调整、标注文本编辑与批量翻译，'
-    '以及字符串批量替换等辅助功能。全程本地运行，数据安全不外泄。'
-)
