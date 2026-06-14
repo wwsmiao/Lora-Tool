@@ -5,51 +5,47 @@
 
     <div class="mb-4">
         <h1 class="fw-extrabold fs-3">标注修改</h1>
-        <p class="text-muted small">查看所有图片及对应标注文本，支持在线编辑、查找替换和批量翻译</p>
+        <p class="small" style="color:var(--accent);">查看所有图片及对应标注文本，支持在线编辑、查找替换和批量翻译</p>
     </div>
 
-    <!-- Path input -->
     <div class="input-group mb-3">
         <input type="text" class="form-control" id="imagePath"
                placeholder="输入图片和txt文本所在路径，例如: D:\dataset\train"
                value="{{ request.args.get('path', '') }}">
         <button class="btn btn-gradient" id="btnLoad" onclick="loadAll()">加载全部</button>
-        <button class="btn btn-outline-secondary btn-sm d-none" id="btnCount" onclick="countOnly()">快速预览数量</button>
+        <button class="btn btn-outline-secondary btn-sm d-none" id="btnCount" onclick="countOnly()">预览数量</button>
     </div>
 
-    <!-- Toolbar -->
     <div class="card card-glow border mb-3 d-none" id="toolbarCard">
         <div class="card-body py-2 px-3">
             <div class="d-flex flex-wrap align-items-center gap-3">
                 <div class="d-flex align-items-center gap-1">
-                    <span class="text-muted small me-1">排序</span>
+                    <span class="small" style="color:var(--accent);">排序</span>
                     <button class="btn btn-gradient btn-sm active" id="btnSortName" onclick="setSort('name_asc')">名称升序</button>
                     <button class="btn btn-outline-secondary btn-sm" id="btnSortNameDesc" onclick="setSort('name_desc')">名称降序</button>
                     <button class="btn btn-outline-secondary btn-sm" id="btnSortDate" onclick="setSort('date_desc')">日期最新</button>
                     <button class="btn btn-outline-secondary btn-sm" id="btnSortDateAsc" onclick="setSort('date_asc')">日期最旧</button>
                 </div>
                 <div class="d-flex align-items-center gap-1">
-                    <span class="text-muted small me-1">查找替换</span>
+                    <span class="small" style="color:var(--accent);">查找替换</span>
                     <input type="text" class="form-control form-control-sm" id="searchStr" placeholder="查找" style="width:120px;">
                     <input type="text" class="form-control form-control-sm" id="replaceStr" placeholder="替换为" style="width:120px;">
-                    <button class="btn btn-danger btn-sm" onclick="replaceAll()">全部替换</button>
+                    <button class="btn btn-outline-danger btn-sm" onclick="replaceAll()">全部替换</button>
                 </div>
                 <div class="d-flex align-items-center gap-1 ms-auto">
-                    <span class="text-muted small me-1">批量翻译</span>
-                    <button class="btn btn-success btn-sm" onclick="translateAll('zh2en')">中译英</button>
-                    <button class="btn btn-success btn-sm" onclick="translateAll('en2zh')">英译中</button>
+                    <span class="small" style="color:var(--accent);">批量翻译</span>
+                    <button class="btn btn-outline-success btn-sm" onclick="translateAll('zh2en')">中译英</button>
+                    <button class="btn btn-outline-success btn-sm" onclick="translateAll('en2zh')">英译中</button>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Grid -->
     <div class="row g-2" id="labelGrid"></div>
 
-    <!-- Pagination -->
     <div id="paginationBar" class="d-none mt-3 d-flex align-items-center justify-content-center gap-2">
         <button class="btn btn-outline-secondary btn-sm" id="btnPrev" onclick="goPage(currentPage-1)">上一页</button>
-        <span id="pageInfo" class="small text-muted text-center" style="min-width:80px;"></span>
+        <span id="pageInfo" class="small" style="color:var(--accent);min-width:80px;text-align:center;"></span>
         <button class="btn btn-outline-secondary btn-sm" id="btnNext" onclick="goPage(currentPage+1)">下一页</button>
         <select id="pageSizeSelect" onchange="changePageSize()" class="form-select form-select-sm" style="width:90px;">
             <option value="50">50/页</option>
@@ -59,8 +55,7 @@
         </select>
     </div>
 
-    <!-- Info -->
-    <div id="infoBar" class="d-none mt-2 small text-muted d-flex justify-content-between">
+    <div id="infoBar" class="d-none mt-2 small d-flex justify-content-between" style="color:var(--accent);">
         <span id="totalInfo"></span>
         <span>修改文本后失焦自动保存 | 点击图片可全屏查看</span>
     </div>
@@ -68,7 +63,7 @@
 
 <style>
 .label-card { transition: border-color .2s, box-shadow .2s; }
-.label-card:hover { border-color: rgba(var(--bs-primary-rgb),.3); box-shadow: 0 0 16px rgba(var(--bs-primary-rgb),.08); }
+.label-card:hover { border-color: rgba(var(--accent-rgb),.3); box-shadow: 0 0 16px rgba(var(--accent-rgb),.08); }
 .label-card textarea { resize: none; font-size: 12px; line-height: 1.6; }
 .label-card img { object-fit: cover; cursor: pointer; }
 </style>
@@ -76,108 +71,141 @@
 
 {% block scripts %}
 <script>
-let currentPath = '', allItems = [], currentPage = 1, totalPages = 1, pageSize = 100, currentSort = 'name_asc', isLoading = false;
-const $ = id => document.getElementById(id);
+var currentPath = '', allItems = [], currentPage = 1, totalPages = 1, pageSize = 100, currentSort = 'name_asc', isLoading = false;
 
 function loadAll() {
-    const path = $('imagePath').value.trim();
+    var path = document.getElementById('imagePath').value.trim();
     if (!path) { showToast('请填写路径', 'warning'); return; }
-    currentPath = path; currentPage = 1; pageSize = parseInt($('pageSizeSelect').value); _loadPage();
+    currentPath = path; currentPage = 1; pageSize = parseInt(document.getElementById('pageSizeSelect').value); _loadPage();
 }
 
 function _loadPage() {
     if (isLoading) return; isLoading = true;
-    $('labelGrid').innerHTML = '<div class="col-12 text-center py-5"><div class="spinner-border text-primary mb-3"></div><p class="text-muted small">加载中...</p></div>';
+    var grid = document.getElementById('labelGrid');
+    grid.innerHTML = '<div class="col-12 text-center py-5"><div class="spinner-border" style="color:var(--accent);"></div><p class="small mt-2" style="color:var(--accent);">加载中...</p></div>';
     fetch('/label_edit/load', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({image_path:currentPath, page:currentPage, page_size:pageSize, sort:currentSort}) })
-    .then(r=>r.json()).then(data=>{
+    .then(function(r){ return r.json(); })
+    .then(function(data){
         isLoading = false;
         if (data.success) {
             allItems = data.items; totalPages = data.total_pages; currentSort = data.sort || 'name_asc';
             updateSortButtons(); renderGrid(data.items); renderPagination(data.page, data.total_pages, data.total);
-            $('toolbarCard').classList.remove('d-none'); $('infoBar').classList.add('d-flex').classList.remove('d-none');
-            $('btnCount').classList.remove('d-none');
-            $('totalInfo').textContent = data.total + ' 张图片，第 ' + data.page + '/' + data.total_pages + ' 页';
+            document.getElementById('toolbarCard').classList.remove('d-none');
+            document.getElementById('infoBar').classList.add('d-flex'); document.getElementById('infoBar').classList.remove('d-none');
+            document.getElementById('btnCount').classList.remove('d-none');
+            document.getElementById('totalInfo').textContent = data.total + ' 张图片，第 ' + data.page + '/' + data.total_pages + ' 页';
         } else {
-            $('labelGrid').innerHTML = '<div class="col-12 text-center py-5 text-muted">' + data.message + '</div>';
+            grid.innerHTML = '<div class="col-12 text-center py-5" style="color:var(--accent);">' + data.message + '</div>';
             showToast(data.message, 'error');
-            $('toolbarCard').classList.add('d-none'); $('infoBar').classList.add('d-none'); $('paginationBar').classList.add('d-none');
+            document.getElementById('toolbarCard').classList.add('d-none');
+            document.getElementById('infoBar').classList.add('d-none');
+            document.getElementById('paginationBar').classList.add('d-none');
         }
-    }).catch(err=>{ isLoading = false; $('labelGrid').innerHTML = '<div class="col-12 text-center py-5 text-danger">加载失败</div>'; showToast('加载失败', 'error'); });
+    }).catch(function(err){
+        isLoading = false;
+        grid.innerHTML = '<div class="col-12 text-center py-5 text-danger">加载失败: ' + err.message + '</div>';
+        showToast('加载失败', 'error');
+    });
 }
 
 function goPage(p) { if (p<1||p>totalPages||isLoading) return; currentPage = p; window.scrollTo({top:0,behavior:'smooth'}); _loadPage(); }
-function changePageSize() { currentPage = 1; pageSize = parseInt($('pageSizeSelect').value); _loadPage(); }
+function changePageSize() { currentPage = 1; pageSize = parseInt(document.getElementById('pageSizeSelect').value); _loadPage(); }
 
-function setSort(sort) {
-    if (currentSort === sort) return; currentSort = sort; currentPage = 1; _loadPage();
-}
+function setSort(sort) { if (currentSort===sort) return; currentSort=sort; currentPage=1; _loadPage(); }
 function updateSortButtons() {
-    ['btnSortName','btnSortNameDesc','btnSortDate','btnSortDateAsc'].forEach(function(id) {
-        var b = $(id); if (!b) return;
-        var active = (id === 'btnSortName' && currentSort === 'name_asc') || (id === 'btnSortNameDesc' && currentSort === 'name_desc') || (id === 'btnSortDate' && currentSort === 'date_desc') || (id === 'btnSortDateAsc' && currentSort === 'date_asc');
+    ['btnSortName','btnSortNameDesc','btnSortDate','btnSortDateAsc'].forEach(function(id){
+        var b = document.getElementById(id); if (!b) return;
+        var active = (id==='btnSortName'&&currentSort==='name_asc')||(id==='btnSortNameDesc'&&currentSort==='name_desc')||(id==='btnSortDate'&&currentSort==='date_desc')||(id==='btnSortDateAsc'&&currentSort==='date_asc');
         b.className = 'btn btn-sm ' + (active ? 'btn-gradient active' : 'btn-outline-secondary');
     });
 }
 
 function renderGrid(items) {
-    var g = $('labelGrid'); g.innerHTML = '';
-    items.forEach(function(item, idx) {
-        var col = document.createElement('div'); col.className = 'col-xl-3 col-lg-4 col-md-6 col-12';
-        col.innerHTML = '<div class="card label-card border h-100"><div class="position-relative" style="height:180px;overflow:hidden;">' +
-            '<a data-fancybox="gallery" href="' + item.img_data + '"><img src="' + item.img_data + '" class="w-100 h-100" loading="lazy"></a>' +
-            '<span class="badge bg-dark position-absolute top-0 end-0 m-1 small">' + (idx+1+(currentPage-1)*pageSize) + '</span></div>' +
-            '<div class="card-body p-2"><textarea class="form-control label-card-textarea" rows="4" data-filename="' + item.txt_name + '" onblur="saveLabel(this)">' + escHtml(item.txt_content||'') + '</textarea>' +
-            '<div class="d-flex justify-content-between mt-1"><small class="text-muted text-truncate" title="' + item.filename + '">' + item.filename + '</small>' +
-            '<a href="javascript:void(0)" onclick="translateOne(this)" data-filename="' + item.txt_name + '" class="small text-decoration-none" style="color:var(--accent);">翻译</a></div></div></div>';
-        g.appendChild(col);
+    var g = document.getElementById('labelGrid'); g.innerHTML = '';
+    items.forEach(function(item, idx){
+        var imgSrc = item.img_data || '';
+        var txtContent = item.txt_content || '';
+        var filename = item.filename || '';
+        var txtName = item.txt_name || '';
+        var num = idx + 1 + (currentPage-1) * pageSize;
+        var div = document.createElement('div');
+        div.className = 'col-xl-3 col-lg-4 col-md-6 col-12';
+        div.innerHTML =
+            '<div class="card label-card border h-100">' +
+            '<div class="position-relative" style="height:180px;overflow:hidden;">' +
+            '<a data-fancybox="gallery" href="' + imgSrc + '"><img src="' + imgSrc + '" class="w-100 h-100" loading="lazy" onerror="this.src=\'data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>' + '\\u{1F5BC}' + '</text></svg>\'"></a>' +
+            '<span class="badge bg-dark position-absolute top-0 end-0 m-1" style="font-size:10px;">' + num + '</span></div>' +
+            '<div class="card-body p-2">' +
+            '<textarea class="form-control label-card-textarea" rows="4" data-txtname="' + txtName + '" onblur="saveLabel(this)" style="font-size:12px;line-height:1.6;resize:none;">' + escHtml(txtContent) + '</textarea>' +
+            '<div class="d-flex justify-content-between mt-1">' +
+            '<small class="text-truncate" style="color:var(--accent);" title="' + filename + '">' + filename + '</small>' +
+            '<a href="javascript:void(0)" onclick="translateOne(this)" data-txtname="' + txtName + '" class="small text-decoration-none" style="color:var(--accent);">翻译</a>' +
+            '</div></div></div>';
+        g.appendChild(div);
     });
 }
 
-function renderPagination(page, total, totalItems) {
-    var bar = $('paginationBar');
-    if (total <= 1) { bar.classList.add('d-none'); return; }
+function renderPagination(page, total) {
+    var bar = document.getElementById('paginationBar');
+    if (total <= 1) { bar.classList.add('d-none'); bar.classList.remove('d-flex'); return; }
     bar.classList.remove('d-none'); bar.classList.add('d-flex');
-    $('pageInfo').textContent = page + ' / ' + total;
-    $('btnPrev').disabled = page <= 1;
-    $('btnNext').disabled = page >= total;
+    document.getElementById('pageInfo').textContent = page + ' / ' + total;
+    document.getElementById('btnPrev').disabled = page <= 1;
+    document.getElementById('btnNext').disabled = page >= total;
 }
 
 function saveLabel(el) {
-    var txt_name = el.dataset.filename, content = el.value;
-    fetch('/label_edit/save', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({image_path:currentPath, txt_name:txt_name, content:content}) })
-        .then(r=>r.json()).then(d=>{ if(!d.success) showToast(d.message,'error'); });
+    var txtName = el.getAttribute('data-txtname');
+    var content = el.value;
+    fetch('/label_edit/save', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({image_path:currentPath, txt_name:txtName, content:content}) })
+        .then(function(r){ return r.json(); })
+        .then(function(d){ if(!d.success) showToast(d.message,'error'); });
 }
 
-function countOnly() { fetch('/label_edit/count', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({image_path:currentPath}) }).then(r=>r.json()).then(d=>{ if(d.success) showToast(d.total+' 张图片','info'); else showToast(d.message,'error'); }); }
+function countOnly() {
+    fetch('/label_edit/count', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({image_path:currentPath}) })
+        .then(function(r){ return r.json(); })
+        .then(function(d){ if(d.success) showToast(d.total+' 张图片','info'); else showToast(d.message,'error'); });
+}
 
 function replaceAll() {
-    var s = $('searchStr').value, r = $('replaceStr').value;
+    var s = document.getElementById('searchStr').value, r = document.getElementById('replaceStr').value;
     if (!s) { showToast('请输入查找字符串','warning'); return; }
     if (!confirm('确定将 "'+s+'" 替换为 "'+(r||'(删除)')+'"？')) return;
     fetch('/label_edit/replace_all', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({image_path:currentPath, search_str:s, replace_str:r}) })
-        .then(r=>r.json()).then(d=>{ if(d.success){ showToast('已替换 '+d.count+' 处', 'success'); _loadPage(); } else showToast(d.message,'error'); });
+        .then(function(r){ return r.json(); })
+        .then(function(d){ if(d.success){ showToast('已替换 '+d.count+' 处','success'); _loadPage(); } else showToast(d.message,'error'); });
 }
 
 function translateAll(direction) {
     if (!confirm('确定要批量翻译全部标注文本？')) return;
     fetch('/label_edit/translate_all', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({image_path:currentPath, direction:direction}) })
-        .then(r=>r.json()).then(d=>{ if(d.success){ showToast('翻译完成: '+d.count+' 条', 'success'); _loadPage(); } else showToast(d.message,'error'); });
+        .then(function(r){ return r.json(); })
+        .then(function(d){ if(d.success){ showToast('翻译完成: '+d.count+' 条','success'); _loadPage(); } else showToast(d.message,'error'); });
 }
 
 function translateOne(el) {
-    var ta = el.closest('.card-body').querySelector('textarea');
+    var cardBody = el.parentElement.parentElement;
+    var ta = cardBody.querySelector('textarea');
+    if (!ta) return;
     var text = ta.value.trim();
     if (!text) { showToast('文本为空','warning'); return; }
     fetch('/label_edit/translate', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({text:text, direction:'zh2en'}) })
-        .then(r=>r.json()).then(d=>{ if(d.success){ ta.value = d.translated || d.result || ''; ta.dispatchEvent(new Event('blur')); showToast('翻译完成','success'); } else showToast(d.message,'error'); });
+        .then(function(r){ return r.json(); })
+        .then(function(d){ if(d.success){ ta.value = d.translated || ''; ta.dispatchEvent(new Event('blur')); showToast('翻译完成','success'); } else showToast(d.message,'error'); });
 }
 
-function escHtml(s) { var d = document.createElement('div'); d.textContent = s||''; return d.innerHTML; }
+function escHtml(s) {
+    if (!s && s !== 0) return '';
+    var d = document.createElement('div');
+    d.textContent = String(s);
+    return d.innerHTML;
+}
 
-// Init
-document.addEventListener('DOMContentLoaded', function() {
+// Auto-load if path param present
+document.addEventListener('DOMContentLoaded', function(){
     var p = document.getElementById('imagePath');
-    if (p.value.trim()) loadAll();
+    if (p && p.value.trim()) loadAll();
 });
 </script>
 {% endblock %}
