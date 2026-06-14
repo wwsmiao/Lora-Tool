@@ -139,7 +139,8 @@ function renderGrid(items) {
             '<textarea class="form-control label-card-textarea" rows="4" data-txtname="' + txtName + '" onblur="saveLabel(this)" style="font-size:12px;line-height:1.6;resize:none;">' + escHtml(txtContent) + '</textarea>' +
             '<div class="d-flex justify-content-between mt-1">' +
             '<small class="text-truncate" style="color:var(--accent);" title="' + filename + '">' + filename + '</small>' +
-            '<a href="javascript:void(0)" onclick="translateOne(this)" data-txtname="' + txtName + '" class="small text-decoration-none" style="color:var(--accent);">翻译</a>' +
+            '<a href="javascript:void(0)" onclick="translateOne(this,\'zh2en\')" class="small text-decoration-none" style="color:var(--accent);">中译英</a>' +
+            ' <a href="javascript:void(0)" onclick="translateOne(this,\'en2zh\')" class="small text-decoration-none" style="color:var(--accent);">英译中</a>' +
             '</div></div></div>';
         g.appendChild(div);
     });
@@ -184,13 +185,13 @@ function translateAll(direction) {
         .then(function(d){ if(d.success){ showToast('翻译完成: '+d.count+' 条','success'); _loadPage(); } else showToast(d.message,'error'); });
 }
 
-function translateOne(el) {
+function translateOne(el, direction) {
     var cardBody = el.parentElement.parentElement;
     var ta = cardBody.querySelector('textarea');
     if (!ta) return;
     var text = ta.value.trim();
     if (!text) { showToast('文本为空','warning'); return; }
-    fetch('/label_edit/translate', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({text:text, direction:'zh2en'}) })
+    fetch('/label_edit/translate', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({text:text, direction:direction}) })
         .then(function(r){ return r.json(); })
         .then(function(d){ if(d.success){ ta.value = d.translated || ''; ta.dispatchEvent(new Event('blur')); showToast('翻译完成','success'); } else showToast(d.message,'error'); });
 }
